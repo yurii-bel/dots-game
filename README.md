@@ -42,6 +42,19 @@ pnpm dev
 # server → http://localhost:4000/health
 ```
 
+### Windows / `next/font` note
+
+If `@dots/web` fails compiling `/` with `ERR_REQUIRE_ESM` from `magic-string` (via `@tailwindcss/postcss` → `@tailwindcss/node`), pull latest, then do a clean reinstall and restart:
+
+```bash
+# from repo root (PowerShell or cmd)
+rmdir /s /q node_modules
+pnpm install
+pnpm dev
+```
+
+Root `pnpm.overrides` pins `magic-string` to `0.30.21` (dual CJS/ESM). Tailwind v4.3.4 otherwise pulls ESM-only `magic-string@1.x`, which breaks Next’s CJS PostCSS/`next/font` loader on some Node/Windows setups. The Socket.IO server on `:4000` can still start while Next fails — that is expected for this bug.
+
 Open two browser profiles (or a normal + private window) on `http://localhost:3000`:
 
 1. **Find match** on both, or
