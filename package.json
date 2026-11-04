@@ -1,0 +1,34 @@
+{
+  "name": "dots-game",
+  "private": true,
+  "version": "0.0.0",
+  "description": "DOTS — Спортивные точки online (pnpm monorepo)",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @dots/web --filter @dots/server run dev",
+    "dev:web": "pnpm --filter @dots/web dev",
+    "dev:server": "pnpm --filter @dots/server dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "test": "pnpm -r --if-present run test",
+    "test:e2e": "pnpm --filter @dots/web test:e2e",
+    "db:generate": "pnpm --filter @dots/database generate",
+    "db:migrate": "pnpm --filter @dots/database migrate:dev",
+    "db:push": "pnpm --filter @dots/database push",
+    "typecheck": "pnpm -r --if-present run typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}

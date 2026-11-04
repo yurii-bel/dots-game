@@ -1,0 +1,20 @@
+// Milestone 1: minimal Prisma wiring stub.
+// Game tables (matches, moves, etc.) intentionally omitted.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Placeholder model so `prisma generate` / migrate have a valid schema.
+model HealthCheck {
+  id        String   @id @default(cuid())
+  note      String   @default("scaffold")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("health_checks")
+}
