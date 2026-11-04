@@ -1,0 +1,34 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# builds
+dist
+.next
+out
+build
+coverage
+playwright-report
+test-results
+blob-report
+
+# env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# tooling
+.turbo
+*.tsbuildinfo
+.DS_Store
+*.log
+.vscode/*
+!.vscode/extensions.json
+
+# prisma
+packages/database/src/generated
+
+# misc
+*.pem
+.vercel
