@@ -28,6 +28,10 @@ function finishedLabel(payload: GameFinishedPayload): string {
       ? `${payload.winner === "blue" ? "Blue" : "Red"} wins by resign.`
       : "Game ended by resign.";
   }
+  if (payload.reason === "landing") {
+    if (!payload.winner) return "Landing declared — draw.";
+    return `${payload.winner === "blue" ? "Blue" : "Red"} wins after landing.`;
+  }
   if (payload.reason === "board_full") {
     if (!payload.winner) return "Board full — draw.";
     return `${payload.winner === "blue" ? "Blue" : "Red"} wins.`;
@@ -223,4 +227,10 @@ export function resignGame(): void {
   const { playerId, gameId } = useGameStore.getState();
   if (!playerId || !gameId) return;
   getSocket().emit(SocketEvents.gameResign, { gameId, playerId });
+}
+
+export function declareLandingGame(): void {
+  const { playerId, gameId } = useGameStore.getState();
+  if (!playerId || !gameId) return;
+  getSocket().emit(SocketEvents.gameLanding, { gameId, playerId });
 }

@@ -34,6 +34,8 @@ export function buildClassicGame(options: {
     scores: { blue: 0, red: 0 },
     moveNumber: options.moveNumber ?? 0,
     status: "in_progress",
+    winner: null,
+    finishedReason: null,
   };
 }
 

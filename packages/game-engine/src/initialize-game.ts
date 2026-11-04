@@ -37,5 +37,7 @@ export function initializeGame(options: InitializeGameOptions): GameState {
     scores: { blue: 0, red: 0 },
     moveNumber: 0,
     status: "in_progress",
+    winner: null,
+    finishedReason: null,
   };
 }

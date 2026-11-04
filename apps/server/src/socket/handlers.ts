@@ -2,6 +2,7 @@ import type { Server, Socket } from "socket.io";
 import {
   GameCreatePayloadSchema,
   GameJoinPayloadSchema,
+  GameLandingPayloadSchema,
   GameMovePayloadSchema,
   GameResignPayloadSchema,
   GameSyncPayloadSchema,
@@ -346,6 +347,25 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       emitError(socket, {
         code: "GAME_NOT_IN_PROGRESS",
         message: "Cannot resign this game",
+      });
+      return;
+    }
+
+    broadcastFinished(io, game);
+  });
+
+  socket.on(SocketEvents.gameLanding, (raw: unknown) => {
+    const parsed = GameLandingPayloadSchema.safeParse(raw);
+    if (!parsed.success) {
+      emitError(socket, { code: "INVALID_PAYLOAD", message: "Invalid game:landing" });
+      return;
+    }
+
+    const game = rooms.declarePlayerLanding(parsed.data.gameId, parsed.data.playerId);
+    if (!game) {
+      emitError(socket, {
+        code: "GAME_NOT_IN_PROGRESS",
+        message: "Cannot declare landing for this game",
       });
       return;
     }

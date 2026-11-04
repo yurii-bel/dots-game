@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import {
   applyMove,
+  declareLanding,
   initializeGame,
   type GameState,
   type PlayerColor,
@@ -40,7 +41,7 @@ export type ActiveGame = {
   seats: Partial<Record<PlayerColor, Seat>>;
   engine: GameState | null;
   winner: PlayerColor | null;
-  finishedReason: "board_full" | "resign" | "disconnect_forfeit" | null;
+  finishedReason: "board_full" | "resign" | "disconnect_forfeit" | "landing" | null;
   /** requestId → prior move result (idempotency). */
   moveResults: Map<string, MoveResultCache>;
 };
@@ -386,13 +387,12 @@ export class GameRoomRegistry {
 
     if (result.game.status === "finished") {
       game.status = "finished";
-      game.finishedReason = "board_full";
-      const { blue, red } = result.game.scores;
-      game.winner = blue === red ? null : blue > red ? "blue" : "red";
+      game.finishedReason = result.game.finishedReason ?? "board_full";
+      game.winner = result.game.winner;
       void persistGameFinished({
         gameId: game.id,
         winner: game.winner,
-        reason: "board_full",
+        reason: game.finishedReason ?? "board_full",
         version: result.game.moveNumber,
       });
     }
@@ -434,13 +434,42 @@ export class GameRoomRegistry {
     game.status = "finished";
     game.finishedReason = "resign";
     game.winner = winner;
-    game.engine = { ...game.engine, status: "finished" };
+    game.engine = {
+      ...game.engine,
+      status: "finished",
+      winner,
+      finishedReason: null, // resign is server-side, not an engine score finish
+    };
 
     void persistGameFinished({
       gameId: game.id,
       winner,
       reason: "resign",
       version: game.engine.moveNumber,
+    });
+
+    return game;
+  }
+
+  /** Declare заземление (§8.1г / §8.2–8.4) via the pure engine. */
+  declarePlayerLanding(gameId: string, playerId: string): ActiveGame | null {
+    const game = this.games.get(gameId);
+    if (!game || !game.engine || game.status !== "in_progress") return null;
+    if (this.colorOf(game, playerId) === null) return null;
+
+    const result = declareLanding(game.engine, { playerId });
+    if (!result.ok) return null;
+
+    game.engine = result.game;
+    game.status = "finished";
+    game.finishedReason = "landing";
+    game.winner = result.game.winner;
+
+    void persistGameFinished({
+      gameId: game.id,
+      winner: game.winner,
+      reason: "landing",
+      version: result.game.moveNumber,
     });
 
     return game;

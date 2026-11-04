@@ -13,6 +13,12 @@ export {
 export { resolveCapture, isIndexInHouse } from "./resolve-capture.js";
 export { recalculateScore } from "./recalculate-score.js";
 export {
+  findLandingCaptures,
+  resolveLandingCaptures,
+  findGroundedIndices,
+  findSurroundableIndices,
+} from "./landing.js";
+export {
   ORTHOGONAL_DELTAS,
   KING_DELTAS,
   neighborIndices4,

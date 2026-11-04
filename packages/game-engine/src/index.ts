@@ -2,15 +2,17 @@
  * @dots/game-engine
  *
  * Pure Спортивные точки logic — no Socket.IO / Next.js / Prisma deps.
- * Milestone 3: classic initializeGame + applyMove (validation, enclosure, capture).
+ * Rules patch: classic initializeGame + applyMove + declareLanding
+ * (заземление §8.2–8.4; скрест documented as 8/4 dual).
  */
 
-export const ENGINE_VERSION = "0.2.0-m3" as const;
+export const ENGINE_VERSION = "0.3.0-rules-patch" as const;
 
 export type EngineCapabilities = {
   version: typeof ENGINE_VERSION;
   initializeGame: true;
   applyMove: true;
+  declareLanding: true;
   message: string;
 };
 
@@ -19,13 +21,16 @@ export function getEngineStatus(): EngineCapabilities {
     version: ENGINE_VERSION,
     initializeGame: true,
     applyMove: true,
+    declareLanding: true,
     message:
-      "initializeGame + applyMove (classic СКСТ 2017.1 validation/enclosure/capture) ready.",
+      "initializeGame + applyMove + declareLanding (СКСТ 2017.1 заземление/скрест) ready.",
   };
 }
 
 export { initializeGame } from "./initialize-game.js";
 export { applyMove } from "./apply-move.js";
+export { declareLanding } from "./declare-landing.js";
+export { winnerFromScores } from "./result.js";
 
 export type {
   ApplyMoveFailure,
@@ -35,12 +40,19 @@ export type {
   Cell,
   ClosedContour,
   ConnectedComponent,
+  DeclareLandingFailure,
+  DeclareLandingResult,
+  DeclareLandingSuccess,
   EnclosedRegion,
   EnclosedRegionKind,
+  FinishedReason,
   GamePlayers,
   GameState,
   GameStatus,
   InitializeGameOptions,
+  LandingError,
+  LandingErrorCode,
+  LandingInput,
   MoveError,
   MoveErrorCode,
   MoveInput,
@@ -70,6 +82,10 @@ export {
   findHouses,
   resolveCapture,
   recalculateScore,
+  findLandingCaptures,
+  resolveLandingCaptures,
+  findGroundedIndices,
+  findSurroundableIndices,
 } from "./enclosure/index.js";
 
 export {

@@ -5,6 +5,7 @@ import {
   recalculateScore,
   resolveCapture,
 } from "./enclosure/index.js";
+import { winnerFromScores } from "./result.js";
 import { classicOpponent } from "./rules/classic/index.js";
 import type {
   ApplyMoveResult,
@@ -26,6 +27,7 @@ import type {
  * 2. If the placed point still sits in an opponent домик, convert that house
  *    into an opponent capture (§5.14)
  * 3. Recalculate scores (§6.1 / §6.4)
+ * 4. If no playable empties remain, finish (§8.1в) with §8.6 winner
  */
 export function applyMove(game: GameState, move: MoveInput): ApplyMoveResult {
   const turnError = validateTurn(game, move);
@@ -59,6 +61,8 @@ export function applyMove(game: GameState, move: MoveInput): ApplyMoveResult {
     scores,
     moveNumber,
     status: boardFull ? "finished" : "in_progress",
+    finishedReason: boardFull ? "board_full" : null,
+    winner: boardFull ? winnerFromScores(scores) : null,
   };
 
   return { ok: true, game: next };

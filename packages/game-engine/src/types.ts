@@ -39,6 +39,12 @@ export type Board = {
 
 export type GameStatus = "in_progress" | "finished";
 
+/**
+ * Why the engine marked the game finished.
+ * Resign / time / agreed draw stay outside the pure engine (server/UI).
+ */
+export type FinishedReason = "board_full" | "landing";
+
 export type GamePlayers = Record<PlayerColor, string>;
 
 export type GameState = {
@@ -54,6 +60,13 @@ export type GameState = {
   /** Number of moves already applied. 0 at initial position. */
   moveNumber: number;
   status: GameStatus;
+  /**
+   * §8.6 score winner when the engine ends the game (`board_full` / `landing`).
+   * Null while in progress, or on a score draw.
+   */
+  winner: PlayerColor | null;
+  /** Null while `status === "in_progress"`. */
+  finishedReason: FinishedReason | null;
 };
 
 export type InitializeGameOptions = {
@@ -97,6 +110,30 @@ export type ApplyMoveFailure = {
 };
 
 export type ApplyMoveResult = ApplyMoveSuccess | ApplyMoveFailure;
+
+/** Declare заземление / landing (§8.1г, §8.2–8.4). */
+export type LandingInput = {
+  playerId: string;
+};
+
+export type LandingErrorCode = "GAME_NOT_IN_PROGRESS" | "UNKNOWN_PLAYER";
+
+export type LandingError = {
+  code: LandingErrorCode;
+  message: string;
+};
+
+export type DeclareLandingSuccess = {
+  ok: true;
+  game: GameState;
+};
+
+export type DeclareLandingFailure = {
+  ok: false;
+  error: LandingError;
+};
+
+export type DeclareLandingResult = DeclareLandingSuccess | DeclareLandingFailure;
 
 /** A connected set of cell indices (flat board indices). */
 export type ConnectedComponent = {
