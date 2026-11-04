@@ -1,29 +1,27 @@
 # DOTS — Спортивные точки online
 
-pnpm monorepo scaffold for an online browser-based Спортивные точки game.
+pnpm monorepo for an online browser-based Спортивные точки game.
 
-> **Milestone 3:** `@dots/game-engine` classic `applyMove` — turn/bounds/occupancy validation, enclosure/capture, домик (§5.12–5.16).
+> **Milestone 4:** playable online 1v1 — Socket.IO rooms, server-authoritative moves, Canvas board (points + territories), reconnect + `requestId` idempotency.
 
 ## Package map
 
 | Path | Package | Role |
 |------|---------|------|
-| `apps/web` | `@dots/web` | Next.js App Router frontend (Tailwind + shadcn/ui ready, Zustand) |
-| `apps/server` | `@dots/server` | Dedicated Node.js Socket.IO server (scaffold / health only) |
-| `packages/shared` | `@dots/shared` | Shared Zod schemas, constants, types |
-| `packages/game-engine` | `@dots/game-engine` | Pure TS engine — classic `initializeGame` + `applyMove` (СКСТ 2017.1) |
-| `packages/database` | `@dots/database` | Prisma + PostgreSQL client wiring |
+| `apps/web` | `@dots/web` | Next.js App Router — lobby + Canvas board + Zustand sync |
+| `apps/server` | `@dots/server` | Authoritative Node.js Socket.IO game server |
+| `packages/shared` | `@dots/shared` | Shared Zod schemas (socket contract + health) |
+| `packages/game-engine` | `@dots/game-engine` | Pure TS engine — classic `initializeGame` + `applyMove` |
+| `packages/database` | `@dots/database` | Prisma — `Game` / `GamePlayer` / `Move` (+ HealthCheck) |
 | `packages/tsconfig` | `@dots/tsconfig` | Shared strict TypeScript base configs |
-
-Project rules live in [`.cursor/rules/project.mdc`](.cursor/rules/project.mdc).
 
 ## Prerequisites
 
 - Node.js ≥ 20
 - [pnpm](https://pnpm.io) 10.x (`corepack enable`)
-- Docker (optional, for Postgres + app containers)
+- Docker (optional, for Postgres)
 
-## Local development
+## Local development (web + server)
 
 ```bash
 # 1. Install
@@ -32,45 +30,55 @@ pnpm install
 # 2. Env
 cp .env.example .env
 
-# 3. Postgres (Docker) — recommended
+# 3. Postgres (optional — games run in-memory; Prisma persist is best-effort)
 docker compose up postgres -d
-
-# 4. Prisma client + schema push (placeholder HealthCheck table)
 export DATABASE_URL=postgresql://dots:dots@localhost:5432/dots?schema=public
 pnpm db:generate
 pnpm db:push
 
-# 5. Run apps
+# 4. Run both apps
 pnpm dev
-# web   → http://localhost:3000
+# web    → http://localhost:3000
 # server → http://localhost:4000/health
 ```
+
+Open two browser profiles (or a normal + private window) on `http://localhost:3000`:
+
+1. **Find match** on both, or
+2. **Create private room** on one → share the room code → **Join** on the other.
+
+Play on the Canvas board (mouse or touch). Scores / turn / resign live in the game chrome.
 
 ### Useful scripts
 
 | Script | Description |
 |--------|-------------|
 | `pnpm dev` | Web + Socket.IO server in parallel |
-| `pnpm build` | Build all packages/apps that define `build` |
-| `pnpm test` | Vitest unit tests across the workspace |
-| `pnpm test:e2e` | Playwright smoke (web) |
-| `pnpm db:generate` / `db:push` / `db:migrate` | Prisma |
+| `pnpm test` | Vitest across the workspace |
+| `pnpm typecheck` | `tsc --noEmit` for all packages |
+| `pnpm db:generate` / `db:push` | Prisma client + schema push |
 
-## Docker (full stack)
+## Architecture (M4)
 
-```bash
-cp .env.example .env
-docker compose up --build
+```
+Browser A ──┐                    ┌── @dots/game-engine (initializeGame / applyMove)
+Browser B ──┼── Socket.IO ── @dots/server ── in-memory rooms
+            │                    └── Prisma (optional Game/Move persist)
+            └── Zustand holds sync / pending UI only (not rules)
 ```
 
-Services: `postgres` (:5432), `server` (:4000), `web` (:3000).
+**Socket contract** (see `@dots/shared` `SocketEvents`):
 
-## Architecture notes
+- Client → server: `matchmaking:join/cancel`, `game:create/join/move/resign/sync`
+- Server → client: `matchmaking:found`, `game:started`, `game:move:accepted|rejected`, `game:state`, opponent presence, `game:finished`
+- Moves carry `expectedVersion` + `requestId` (idempotent replay)
 
-- **Server-authoritative:** gameplay will live on `@dots/server` + `@dots/game-engine`; the Next app is a client.
-- **Game engine** is a separate package so rules stay testable without HTTP/UI.
-- **Prisma schema** currently has only a `HealthCheck` placeholder — no game tables yet.
+**Canvas board** (`components/game/`): single HTML Canvas — white grid, blue/red dots, translucent captured territories; responsive ResizeObserver; mouse + touch place.
+
+## Out of scope (deferred)
+
+Заземление, скрест formal modeling, four-cross rematch, auth/rating polish.
 
 ## Stack
 
-Next.js App Router · TypeScript (strict) · Tailwind CSS · shadcn/ui · Node.js · Socket.IO · PostgreSQL · Prisma · Zustand · Zod · Vitest · Playwright
+Next.js App Router · TypeScript · Tailwind CSS · HTML Canvas · Node.js · Socket.IO · PostgreSQL · Prisma · Zustand · Zod · Vitest · Playwright

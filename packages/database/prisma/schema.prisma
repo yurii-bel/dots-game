@@ -1,5 +1,5 @@
-// Milestone 1: minimal Prisma wiring stub.
-// Game tables (matches, moves, etc.) intentionally omitted.
+// Milestone 4: lean Game / GamePlayer / Move for multiplayer persistence.
+// Active gameplay state remains in-memory on the Socket.IO server.
 
 generator client {
   provider = "prisma-client-js"
@@ -10,11 +10,82 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Placeholder model so `prisma generate` / migrate have a valid schema.
+/// Placeholder retained from M1 scaffold.
 model HealthCheck {
   id        String   @id @default(cuid())
   note      String   @default("scaffold")
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("health_checks")
+}
+
+enum GameStatus {
+  waiting
+  in_progress
+  finished
+
+  @@map("game_status")
+}
+
+enum PlayerColor {
+  blue
+  red
+
+  @@map("player_color")
+}
+
+model Game {
+  id             String     @id @default(cuid())
+  /// Short code for private room join (nullable for matchmaking games).
+  roomCode       String?    @unique @map("room_code")
+  status         GameStatus @default(waiting)
+  ruleset        String     @default("classic")
+  rulesetVersion String     @default("2017.1") @map("ruleset_version")
+  /// Engine moveNumber / optimistic concurrency version.
+  version        Int        @default(0)
+  winnerColor    PlayerColor? @map("winner_color")
+  finishedReason String?    @map("finished_reason")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  players GamePlayer[]
+  moves   Move[]
+
+  @@index([status])
+  @@map("games")
+}
+
+model GamePlayer {
+  id          String      @id @default(cuid())
+  gameId      String      @map("game_id")
+  playerId    String      @map("player_id")
+  color       PlayerColor
+  displayName String?     @map("display_name")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, color])
+  @@unique([gameId, playerId])
+  @@index([playerId])
+  @@map("game_players")
+}
+
+model Move {
+  id         String   @id @default(cuid())
+  gameId     String   @map("game_id")
+  moveNumber Int      @map("move_number")
+  playerId   String   @map("player_id")
+  x          Int
+  y          Int
+  requestId  String   @map("request_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, moveNumber])
+  @@unique([gameId, x, y])
+  @@unique([gameId, requestId])
+  @@index([gameId])
+  @@map("moves")
 }
