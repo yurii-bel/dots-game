@@ -16,4 +16,11 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export { PrismaClient };
-export type { HealthCheck, Prisma } from "@prisma/client";
+export type {
+  Game,
+  GamePlayer,
+  HealthCheck,
+  Move,
+  Prisma,
+} from "@prisma/client";
+export { GameStatus, PlayerColor } from "@prisma/client";

@@ -4,7 +4,8 @@ import express from "express";
 import { Server } from "socket.io";
 import { getEngineStatus } from "@dots/game-engine";
 import { APP_NAME, HealthResponseSchema } from "@dots/shared";
-import { env } from "./env";
+import { env } from "./env.js";
+import { registerSocketHandlers } from "./socket/handlers.js";
 
 const app = express();
 app.use(
@@ -24,6 +25,7 @@ app.get("/health", (_req, res) => {
     ...payload,
     app: APP_NAME,
     engine: getEngineStatus(),
+    multiplayer: true,
   });
 });
 
@@ -33,20 +35,17 @@ const io = new Server(httpServer, {
   cors: {
     origin: env.CORS_ORIGIN,
   },
+  // Allow clients to recover after brief network blips.
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: true,
+  },
 });
 
 io.on("connection", (socket) => {
-  // Scaffold only — no gameplay rooms or moves.
-  socket.emit("server:hello", {
-    message: `${APP_NAME} Socket.IO scaffold`,
-    engine: getEngineStatus(),
-  });
-
-  socket.on("client:ping", () => {
-    socket.emit("server:pong", { timestamp: new Date().toISOString() });
-  });
+  registerSocketHandlers(io, socket);
 });
 
 httpServer.listen(env.PORT, () => {
-  console.log(`[${APP_NAME}] Socket.IO server listening on :${env.PORT}`);
+  console.log(`[${APP_NAME}] Socket.IO multiplayer server listening on :${env.PORT}`);
 });

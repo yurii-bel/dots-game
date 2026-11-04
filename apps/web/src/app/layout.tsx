@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: `${APP_NAME} — Спортивные точки`,
-  description: "Online browser-based Спортивные точки (scaffold)",
+  description: "Online 1v1 Спортивные точки — Canvas board + Socket.IO",
 };
 
 export default function RootLayout({
