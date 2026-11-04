@@ -2,7 +2,7 @@
 
 pnpm monorepo scaffold for an online browser-based Спортивные точки game.
 
-> **Milestone 1:** infrastructure only. No board, capture, or multiplayer gameplay yet.
+> **Milestone 2:** `@dots/game-engine` classic board init (39×32 + official cross). No move validation/capture yet.
 
 ## Package map
 
@@ -11,7 +11,7 @@ pnpm monorepo scaffold for an online browser-based Спортивные точк
 | `apps/web` | `@dots/web` | Next.js App Router frontend (Tailwind + shadcn/ui ready, Zustand) |
 | `apps/server` | `@dots/server` | Dedicated Node.js Socket.IO server (scaffold / health only) |
 | `packages/shared` | `@dots/shared` | Shared Zod schemas, constants, types |
-| `packages/game-engine` | `@dots/game-engine` | Independent TS game-engine stub (no rules yet) |
+| `packages/game-engine` | `@dots/game-engine` | Pure TS engine — classic `initializeGame`; `applyMove` stub |
 | `packages/database` | `@dots/database` | Prisma + PostgreSQL client wiring |
 | `packages/tsconfig` | `@dots/tsconfig` | Shared strict TypeScript base configs |
 
