@@ -2,62 +2,65 @@
 
 Pure TypeScript Спортивные точки (Sports Dots) logic. No Socket.IO, Next.js, or Prisma.
 
-## Milestone 2 status
+## Milestone 3 status
 
 | API | Status |
 | --- | --- |
-| `initializeGame({ width, height, ruleset })` | Implemented for `classic` |
-| `applyMove(game, move)` | Stub — throws until move-validation milestone |
+| `initializeGame({ width, height, ruleset, players? })` | Implemented for `classic` |
+| `applyMove(game, move)` | Implemented — validation + enclosure/capture |
 
 ```ts
-import { initializeGame } from "@dots/game-engine";
+import { initializeGame, applyMove } from "@dots/game-engine";
 
 const game = initializeGame({ width: 39, height: 32, ruleset: "classic" });
-// game.currentPlayer === "blue"
-// official initial cross placed; scores 0–0
+// game.players === { blue: "player-1", red: "player-2" }
+
+const result = applyMove(game, { playerId: "player-1", x: 20, y: 18 });
+if (result.ok) {
+  // result.game — new immutable state
+} else {
+  // result.error.code — NOT_YOUR_TURN | OCCUPIED | DISABLED | OUT_OF_BOUNDS | …
+}
 ```
 
-## Classic rules analysis (init scope)
+## Classic rules (СКСТ 2017.1)
 
-**Primary source:** [СКСТ formal rules](https://tensu.ru/rules/) — approved by RОО “СКСТ” order №2 of 27 January 2017 (tensu.ru).  
-**Supporting:** [terminology](https://tensu.ru/terminology/), [four-cross rematch note](https://tensu.ru/post-2-2019/).
+**Primary source:** [СКСТ formal rules](https://tensu.ru/rules/) — order №2 of 27 January 2017 (tensu.ru).
 
 | Topic | Formal rule | Engine choice |
 | --- | --- | --- |
-| Board size | §1.4 — 39 × 32 intersections | `CLASSIC_BOARD_WIDTH/HEIGHT`; `initializeGame` rejects other sizes for `classic` |
-| Coordinates | §1.3 / §2.10 — 1-based; X left→right; **Y bottom→top**; notation `X-Y` | Public API uses the same formal 1-based system |
-| Initial cross | §4.3 — blue `20-17`, `21-16`; red `20-16`, `21-17` | Exact coords in `rules/classic/constants.ts` |
-| First player | §2.7 — blue | `currentPlayer: "blue"` |
-| Starting score | §6.2.1 — always 0 | `scores: { blue: 0, red: 0 }` |
-| Four-cross start | §4.4 — rematch-only; coords set by organizers | **Not** implemented (open for later) |
+| Board size | §1.4 — 39 × 32 | Rejected other sizes for `classic` |
+| Coordinates | §1.3 / §2.10 — 1-based, Y-up | Formal coords in the public API |
+| Initial cross | §4.3 | Exact coords in `rules/classic/constants.ts` |
+| Turns / undo | §2.4–2.6 | Alternating; no undo API |
+| Placement | §2.9 | Reject occupied / disabled |
+| Enclosure chain | §5.2 — 8-adjacent | Walls = active same-color points |
+| Capture vs домик | §5.5 / §5.12 | Opponent inside → capture; empty → house |
+| Min area | §5.10 | Interior components separated by chords |
+| House entry | §5.14 / §5.16 | Auto-capture on turn pass; own enclosure escapes |
+| Scoring | §6.1 / §6.4 | `recalculateScore` from `capturedBy` |
+| Four-cross start | §4.4 | **Deferred** (rematch-only) |
 
-### Chosen initial-cross coordinates
+`rulesetVersion` remains `"2017.1"`.
+
+## Enclosure pipeline
 
 ```
-Blue: (20, 17), (21, 16)
-Red:  (20, 16), (21, 17)
+findConnectedComponents → findEnclosedRegions / findClosedContours
+  → validateEnclosure → resolveCapture → recalculateScore
 ```
 
-Same-color points lie on opposite corners of one cell (imaginary diagonal), matching §4.2.
-
-### Open questions for Yurii
-
-1. Confirm tensu.ru / СКСТ 2017 as the authoritative text (vs. another federation PDF).
-2. Confirm engine storage keeps **formal Y-up** (recommended) vs. converting to canvas Y-down at the UI boundary only.
-3. Four-cross rematch preset: defer until tournament/rematch work?
-4. `rulesetVersion: "2017.1"` naming — OK, or prefer a different scheme?
-5. Proceed to `applyMove` validation + enclosure/capture (graph flood-fill plan in architecture guidance)?
+Dual connectivity: 8-connected chains (§5.2), 4-connected region flood from the border.
 
 ## Layout
 
 ```
 src/
-  board/           # grid helpers, empty board, accessors
-  rules/classic/   # versioned classic ruleset (size, cross, first player)
+  board/              # grid helpers
+  enclosure/          # capture pipeline
+  rules/classic/      # versioned classic ruleset
   initialize-game.ts
-  apply-move.ts    # stub
+  apply-move.ts
   types.ts
   index.ts
 ```
-
-Capture pipeline (`findClosedContours`, `resolveCapture`, …) is intentionally absent until approved.

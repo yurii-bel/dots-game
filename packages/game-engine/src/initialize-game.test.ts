@@ -35,6 +35,10 @@ describe("initializeGame (classic)", () => {
     expect(game.currentPlayer).toBe("blue");
   });
 
+  it("binds default opaque player ids for turn checks", () => {
+    expect(game.players).toEqual({ blue: "player-1", red: "player-2" });
+  });
+
   it("starts with zero scores (§6.2.1)", () => {
     expect(game.scores).toEqual({ blue: 0, red: 0 });
   });

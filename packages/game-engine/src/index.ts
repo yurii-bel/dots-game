@@ -2,15 +2,15 @@
  * @dots/game-engine
  *
  * Pure Спортивные точки logic — no Socket.IO / Next.js / Prisma deps.
- * Milestone 2: board structure + classic initializeGame. applyMove is a stub.
+ * Milestone 3: classic initializeGame + applyMove (validation, enclosure, capture).
  */
 
-export const ENGINE_VERSION = "0.1.0-m2" as const;
+export const ENGINE_VERSION = "0.2.0-m3" as const;
 
 export type EngineCapabilities = {
   version: typeof ENGINE_VERSION;
   initializeGame: true;
-  applyMove: false;
+  applyMove: true;
   message: string;
 };
 
@@ -18,9 +18,9 @@ export function getEngineStatus(): EngineCapabilities {
   return {
     version: ENGINE_VERSION,
     initializeGame: true,
-    applyMove: false,
+    applyMove: true,
     message:
-      "initializeGame (classic) ready; applyMove validation/capture not implemented yet.",
+      "initializeGame + applyMove (classic СКСТ 2017.1 validation/enclosure/capture) ready.",
   };
 }
 
@@ -28,11 +28,21 @@ export { initializeGame } from "./initialize-game.js";
 export { applyMove } from "./apply-move.js";
 
 export type {
+  ApplyMoveFailure,
+  ApplyMoveResult,
+  ApplyMoveSuccess,
   Board,
   Cell,
+  ClosedContour,
+  ConnectedComponent,
+  EnclosedRegion,
+  EnclosedRegionKind,
+  GamePlayers,
   GameState,
   GameStatus,
   InitializeGameOptions,
+  MoveError,
+  MoveErrorCode,
   MoveInput,
   PlayerColor,
   RulesetId,
@@ -42,12 +52,25 @@ export {
   createEmptyBoard,
   placeDots,
   getCell,
+  cloneBoard,
   toIndex,
   fromIndex,
   isInBounds,
   formatPoint,
 } from "./board/index.js";
 export type { Point, ColoredPoint } from "./board/index.js";
+
+export {
+  findConnectedComponents,
+  findExteriorMask,
+  findClosedContours,
+  findEnclosedRegions,
+  validateEnclosure,
+  findValidCaptures,
+  findHouses,
+  resolveCapture,
+  recalculateScore,
+} from "./enclosure/index.js";
 
 export {
   classicRuleset,

@@ -6,7 +6,7 @@ import type { PlayerColor } from "../types.js";
 export type ColoredPoint = Point & { color: PlayerColor };
 
 function emptyCell(): Cell {
-  return { color: null, disabled: false };
+  return { color: null, disabled: false, capturedBy: null };
 }
 
 /** Allocate an empty board; optional preset dots are applied afterward. */
@@ -32,7 +32,7 @@ export function placeDots(board: Board, dots: readonly ColoredPoint[]): Board {
     if (cell.color !== null) {
       throw new Error(`Intersection (${x}-${y}) is already occupied`);
     }
-    cells[index] = { color, disabled: false };
+    cells[index] = { color, disabled: false, capturedBy: null };
   }
 
   return { width: board.width, height: board.height, cells };
@@ -44,4 +44,13 @@ export function getCell(board: Board, x: number, y: number): Cell {
     throw new RangeError(`Missing cell at (${x}-${y})`);
   }
   return cell;
+}
+
+/** Immutable clone of board cells (shallow per cell). */
+export function cloneBoard(board: Board): Board {
+  return {
+    width: board.width,
+    height: board.height,
+    cells: board.cells.map((cell) => ({ ...cell })),
+  };
 }

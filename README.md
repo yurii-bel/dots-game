@@ -2,7 +2,7 @@
 
 pnpm monorepo scaffold for an online browser-based Спортивные точки game.
 
-> **Milestone 2:** `@dots/game-engine` classic board init (39×32 + official cross). No move validation/capture yet.
+> **Milestone 3:** `@dots/game-engine` classic `applyMove` — turn/bounds/occupancy validation, enclosure/capture, домик (§5.12–5.16).
 
 ## Package map
 
@@ -11,7 +11,7 @@ pnpm monorepo scaffold for an online browser-based Спортивные точк
 | `apps/web` | `@dots/web` | Next.js App Router frontend (Tailwind + shadcn/ui ready, Zustand) |
 | `apps/server` | `@dots/server` | Dedicated Node.js Socket.IO server (scaffold / health only) |
 | `packages/shared` | `@dots/shared` | Shared Zod schemas, constants, types |
-| `packages/game-engine` | `@dots/game-engine` | Pure TS engine — classic `initializeGame`; `applyMove` stub |
+| `packages/game-engine` | `@dots/game-engine` | Pure TS engine — classic `initializeGame` + `applyMove` (СКСТ 2017.1) |
 | `packages/database` | `@dots/database` | Prisma + PostgreSQL client wiring |
 | `packages/tsconfig` | `@dots/tsconfig` | Shared strict TypeScript base configs |
 
