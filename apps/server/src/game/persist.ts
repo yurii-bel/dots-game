@@ -1,16 +1,31 @@
-import { prisma, type PlayerColor as DbColor } from "@dots/database";
 import type { PlayerColor } from "@dots/game-engine";
+import type { PrismaClient } from "@dots/database";
 
 let persistenceEnabled: boolean | null = null;
+let prisma: PrismaClient | null = null;
+
+async function getPrisma(): Promise<PrismaClient | null> {
+  if (!process.env.DATABASE_URL) return null;
+  if (prisma) return prisma;
+  try {
+    const mod = await import("@dots/database");
+    prisma = mod.prisma;
+    return prisma;
+  } catch (err) {
+    console.warn("[persist] Failed to load @dots/database — in-memory games only", err);
+    return null;
+  }
+}
 
 async function canPersist(): Promise<boolean> {
   if (persistenceEnabled !== null) return persistenceEnabled;
-  if (!process.env.DATABASE_URL) {
+  const client = await getPrisma();
+  if (!client) {
     persistenceEnabled = false;
     return false;
   }
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await client.$queryRaw`SELECT 1`;
     persistenceEnabled = true;
     return true;
   } catch {
@@ -18,10 +33,6 @@ async function canPersist(): Promise<boolean> {
     persistenceEnabled = false;
     return false;
   }
-}
-
-function toDbColor(color: PlayerColor): DbColor {
-  return color;
 }
 
 export async function persistGameCreated(input: {
@@ -32,7 +43,7 @@ export async function persistGameCreated(input: {
   rulesetVersion: string;
   players: Array<{ playerId: string; color: PlayerColor; displayName?: string }>;
 }): Promise<void> {
-  if (!(await canPersist())) return;
+  if (!(await canPersist()) || !prisma) return;
   try {
     await prisma.game.create({
       data: {
@@ -44,7 +55,7 @@ export async function persistGameCreated(input: {
         players: {
           create: input.players.map((p) => ({
             playerId: p.playerId,
-            color: toDbColor(p.color),
+            color: p.color,
             displayName: p.displayName ?? null,
           })),
         },
@@ -56,7 +67,7 @@ export async function persistGameCreated(input: {
 }
 
 export async function persistGameStarted(gameId: string): Promise<void> {
-  if (!(await canPersist())) return;
+  if (!(await canPersist()) || !prisma) return;
   try {
     await prisma.game.update({
       where: { id: gameId },
@@ -73,13 +84,13 @@ export async function persistPlayerJoined(input: {
   color: PlayerColor;
   displayName?: string;
 }): Promise<void> {
-  if (!(await canPersist())) return;
+  if (!(await canPersist()) || !prisma) return;
   try {
     await prisma.gamePlayer.create({
       data: {
         gameId: input.gameId,
         playerId: input.playerId,
-        color: toDbColor(input.color),
+        color: input.color,
         displayName: input.displayName ?? null,
       },
     });
@@ -101,7 +112,7 @@ export async function persistMove(input: {
   requestId: string;
   version: number;
 }): Promise<void> {
-  if (!(await canPersist())) return;
+  if (!(await canPersist()) || !prisma) return;
   try {
     await prisma.$transaction([
       prisma.move.create({
@@ -130,13 +141,13 @@ export async function persistGameFinished(input: {
   reason: string;
   version: number;
 }): Promise<void> {
-  if (!(await canPersist())) return;
+  if (!(await canPersist()) || !prisma) return;
   try {
     await prisma.game.update({
       where: { id: input.gameId },
       data: {
         status: "finished",
-        winnerColor: input.winner ? toDbColor(input.winner) : null,
+        winnerColor: input.winner,
         finishedReason: input.reason,
         version: input.version,
       },

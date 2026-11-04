@@ -19,30 +19,57 @@ pnpm monorepo for an online browser-based Спортивные точки game.
 
 - Node.js ≥ 20
 - [pnpm](https://pnpm.io) 10.x (`corepack enable`)
-- Docker (optional, for Postgres)
+- Docker (optional, for Postgres — **not required to play**)
 
 ## Local development (web + server)
 
+Playable path needs **no Docker and no live Postgres**. Games stay in-memory on the Socket.IO server; Prisma persist is best-effort when `DATABASE_URL` is reachable.
+
 ```bash
-# 1. Install
+# 1. Install (postinstall runs `pnpm db:generate` — no DB required)
 pnpm install
 
-# 2. Env
+# 2. Env (optional for play; copy if you want web/socket URLs explicit)
 cp .env.example .env
+# You can leave DATABASE_URL unset or pointed at a down Postgres — server still boots.
 
-# 3. Postgres (optional — games run in-memory; Prisma persist is best-effort)
-docker compose up postgres -d
-export DATABASE_URL=postgresql://dots:dots@localhost:5432/dots?schema=public
-pnpm db:generate
-pnpm db:push
-
-# 4. Run both apps
+# 3. Run both apps
 pnpm dev
 # web    → http://localhost:3000
 # server → http://localhost:4000/health
 ```
 
-### Windows / `next/font` note
+If the server ever dies on boot with `@prisma/client` / `GameStatus` export errors, regenerate the client and restart (no `db:push` needed):
+
+```bash
+pnpm db:generate
+pnpm dev
+```
+
+### Optional Postgres (persist games / moves)
+
+```bash
+docker compose up postgres -d
+# set DATABASE_URL in .env (see .env.example)
+pnpm db:generate   # already done by postinstall; safe to re-run
+pnpm db:push
+```
+
+### Windows notes
+
+```text
+# PowerShell / cmd from repo root
+pnpm install
+copy .env.example .env
+pnpm db:generate
+pnpm dev
+```
+
+- Do **not** need Docker Desktop for local 1v1 play.
+- `pnpm db:generate` is enough for boot; `db:push` only if you want a real Postgres schema.
+- If `:4000` connection refused: check the `apps/server` terminal for Prisma export errors, run `pnpm db:generate`, then restart `pnpm dev`.
+
+#### Windows / `next/font` note
 
 If `@dots/web` fails compiling `/` with `ERR_REQUIRE_ESM` from `magic-string` (via `@tailwindcss/postcss` → `@tailwindcss/node`), pull latest, then do a clean reinstall and restart:
 
@@ -69,7 +96,8 @@ Play on the Canvas board (mouse or touch). Scores / turn / resign live in the ga
 | `pnpm dev` | Web + Socket.IO server in parallel |
 | `pnpm test` | Vitest across the workspace |
 | `pnpm typecheck` | `tsc --noEmit` for all packages |
-| `pnpm db:generate` / `db:push` | Prisma client + schema push |
+| `pnpm db:generate` | Prisma client only (enough for server boot; no DB) |
+| `pnpm db:push` | Push schema to a live Postgres (optional) |
 
 ## Architecture (M4)
 
