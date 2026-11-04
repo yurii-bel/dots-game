@@ -15,6 +15,7 @@
     "lint": "pnpm -r run lint",
     "test": "pnpm -r --if-present run test",
     "test:e2e": "pnpm --filter @dots/web test:e2e",
+    "postinstall": "pnpm db:generate",
     "db:generate": "pnpm --filter @dots/database generate",
     "db:migrate": "pnpm --filter @dots/database migrate:dev",
     "db:push": "pnpm --filter @dots/database push",

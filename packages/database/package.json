@@ -10,6 +10,7 @@
     }
   },
   "scripts": {
+    "postinstall": "prisma generate",
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "push": "prisma db push",
