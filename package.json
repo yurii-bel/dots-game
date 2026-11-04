@@ -30,6 +30,9 @@
       "@prisma/engines",
       "esbuild",
       "prisma"
-    ]
+    ],
+    "overrides": {
+      "magic-string": "0.30.21"
+    }
   }
 }
