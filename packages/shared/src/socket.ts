@@ -71,6 +71,7 @@ export const SocketEvents = {
   gameJoin: "game:join",
   gameMove: "game:move",
   gameResign: "game:resign",
+  gameLanding: "game:landing",
   gameSync: "game:sync",
   // Server → client
   matchmakingFound: "matchmaking:found",
@@ -129,6 +130,13 @@ export const GameResignPayloadSchema = z.object({
   playerId: PlayerIdSchema,
 });
 export type GameResignPayload = z.infer<typeof GameResignPayloadSchema>;
+
+/** Declare заземление / landing (§8.1г). */
+export const GameLandingPayloadSchema = z.object({
+  gameId: z.string().min(1),
+  playerId: PlayerIdSchema,
+});
+export type GameLandingPayload = z.infer<typeof GameLandingPayloadSchema>;
 
 export const GameSyncPayloadSchema = z.object({
   gameId: z.string().min(1),
@@ -193,7 +201,7 @@ export type GameOpponentPresencePayload = z.infer<
 
 export const GameFinishedPayloadSchema = z.object({
   gameId: z.string().min(1),
-  reason: z.enum(["board_full", "resign", "disconnect_forfeit"]),
+  reason: z.enum(["board_full", "resign", "disconnect_forfeit", "landing"]),
   winner: PlayerColorSchema.nullable(),
   state: WireGameStateSchema,
 });

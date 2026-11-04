@@ -2,7 +2,7 @@
 
 pnpm monorepo for an online browser-based Спортивные точки game.
 
-> **Milestone 4:** playable online 1v1 — Socket.IO rooms, server-authoritative moves, Canvas board (points + territories), reconnect + `requestId` idempotency.
+> **Rules patch:** `@dots/game-engine` заземление (§8.2–8.4) + скрест dual docs; M4 multiplayer remains the playable 1v1 path.
 
 ## Package map
 
@@ -11,7 +11,7 @@ pnpm monorepo for an online browser-based Спортивные точки game.
 | `apps/web` | `@dots/web` | Next.js App Router — lobby + Canvas board + Zustand sync |
 | `apps/server` | `@dots/server` | Authoritative Node.js Socket.IO game server |
 | `packages/shared` | `@dots/shared` | Shared Zod schemas (socket contract + health) |
-| `packages/game-engine` | `@dots/game-engine` | Pure TS engine — classic `initializeGame` + `applyMove` |
+| `packages/game-engine` | `@dots/game-engine` | Pure TS engine — `initializeGame` / `applyMove` / `declareLanding` |
 | `packages/database` | `@dots/database` | Prisma — `Game` / `GamePlayer` / `Move` (+ HealthCheck) |
 | `packages/tsconfig` | `@dots/tsconfig` | Shared strict TypeScript base configs |
 

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { resignGame } from "@/hooks/use-game-socket";
+import { declareLandingGame, resignGame } from "@/hooks/use-game-socket";
 import { useGameStore } from "@/stores/game-store";
 
 export function GameChrome() {
@@ -72,9 +72,19 @@ export function GameChrome() {
 
       <div className="flex flex-wrap gap-2">
         {connection === "playing" ? (
-          <Button type="button" variant="outline" size="sm" onClick={() => resignGame()}>
-            Resign
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => declareLandingGame()}
+            >
+              Declare landing
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => resignGame()}>
+              Resign
+            </Button>
+          </>
         ) : null}
         <Button type="button" variant="ghost" size="sm" asChild>
           <Link href="/">Lobby</Link>
