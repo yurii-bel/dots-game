@@ -9,12 +9,14 @@ import {
   createPrivateRoom,
   findMatch,
   joinPrivateRoom,
+  leaveGame,
   useGameSocket,
 } from "@/hooks/use-game-socket";
 import {
   getDisplayName,
   loadActiveGame,
   setDisplayName as persistName,
+  type ActiveGameSession,
 } from "@/lib/player-id";
 import { getSocketUrl } from "@/lib/socket";
 import { useGameStore } from "@/stores/game-store";
@@ -28,20 +30,29 @@ export function Lobby() {
   const lastError = useGameStore((s) => s.lastError);
   const [name, setName] = useState("Player");
   const [joinCode, setJoinCode] = useState("");
+  const [savedSession, setSavedSession] = useState<ActiveGameSession | null>(null);
 
   useEffect(() => {
     setName(getDisplayName());
-    const session = loadActiveGame();
-    if (session?.gameId) {
-      router.push(`/game/${session.gameId}`);
-    }
-  }, [router]);
+    setSavedSession(loadActiveGame());
+  }, []);
 
+  // After create / join / match found — enter the game route (not a blind remount redirect).
   useEffect(() => {
     if (gameId && (connection === "playing" || connection === "waiting")) {
       router.push(`/game/${gameId}`);
     }
   }, [gameId, connection, router]);
+
+  useEffect(() => {
+    if (!gameId) {
+      setSavedSession(loadActiveGame());
+    }
+  }, [gameId, connection]);
+
+  const hasResume = Boolean(savedSession?.gameId) && !gameId;
+  const busy =
+    connection === "matchmaking" || connection === "waiting" || connection === "playing";
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-8 px-6 py-16">
@@ -68,13 +79,52 @@ export function Lobby() {
         />
       </label>
 
+      {hasResume ? (
+        <div className="flex flex-col gap-3 rounded-md border border-border/80 bg-secondary/30 p-4">
+          <p className="text-sm text-muted-foreground">
+            You have an active game
+            {savedSession?.roomCode ? (
+              <>
+                {" "}
+                — room{" "}
+                <code className="rounded bg-secondary px-1.5 py-0.5 text-foreground">
+                  {savedSession.roomCode}
+                </code>
+              </>
+            ) : null}
+            .
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={() => {
+                if (!savedSession?.gameId) return;
+                router.push(`/game/${savedSession.gameId}`);
+              }}
+            >
+              Resume game
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                leaveGame({ gameId: savedSession?.gameId });
+                setSavedSession(null);
+              }}
+            >
+              Leave game
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-3">
         {connection === "matchmaking" ? (
           <Button type="button" variant="outline" onClick={() => cancelMatchmaking()}>
             Cancel matchmaking…
           </Button>
         ) : (
-          <Button type="button" onClick={() => findMatch()}>
+          <Button type="button" onClick={() => findMatch()} disabled={hasResume || busy}>
             Find match
           </Button>
         )}
@@ -83,7 +133,7 @@ export function Lobby() {
           type="button"
           variant="outline"
           onClick={() => createPrivateRoom()}
-          disabled={connection === "matchmaking"}
+          disabled={hasResume || busy}
         >
           Create private room
         </Button>
@@ -94,11 +144,12 @@ export function Lobby() {
             placeholder="Room code"
             value={joinCode}
             onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+            disabled={hasResume || busy}
           />
           <Button
             type="button"
             variant="secondary"
-            disabled={!joinCode.trim()}
+            disabled={hasResume || busy || !joinCode.trim()}
             onClick={() => joinPrivateRoom(joinCode)}
           >
             Join

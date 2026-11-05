@@ -302,6 +302,88 @@ export class GameRoomRegistry {
     return null;
   }
 
+  /**
+   * Explicit leave (private + matchmaking):
+   * - waiting → free seat; destroy room if empty (invalidate room code)
+   * - in_progress → resign
+   * Soft disconnect does not call this; same playerId may reattach via join/sync.
+   */
+  leave(gameId: string, playerId: string):
+    | { kind: "destroyed"; gameId: string; roomCode: string | null }
+    | {
+        kind: "seat_freed";
+        game: ActiveGame;
+        color: PlayerColor;
+        playerId: string;
+      }
+    | { kind: "resigned"; game: ActiveGame }
+    | { kind: "noop_finished"; game: ActiveGame }
+    | null {
+    const game = this.games.get(gameId) ?? this.findByRoomCode(gameId);
+    if (!game) return null;
+
+    const color = this.colorOf(game, playerId);
+    if (!color) return null;
+
+    if (game.status === "finished") {
+      this.playerToGame.delete(playerId);
+      return { kind: "noop_finished", game };
+    }
+
+    if (game.status === "in_progress") {
+      const resigned = this.resign(game.id, playerId);
+      return resigned ? { kind: "resigned", game: resigned } : null;
+    }
+
+    // waiting — free this seat only
+    delete game.seats[color];
+    this.playerToGame.delete(playerId);
+
+    const remaining = (["blue", "red"] as const).filter((c) => game.seats[c]);
+    if (remaining.length === 0) {
+      const roomCode = game.roomCode;
+      this.destroyGame(game.id);
+      return { kind: "destroyed", gameId: game.id, roomCode };
+    }
+
+    return { kind: "seat_freed", game, color, playerId };
+  }
+
+  /** Drop a game from all in-memory indexes (invalidates room code). */
+  destroyGame(gameId: string): boolean {
+    const game = this.games.get(gameId);
+    if (!game) return false;
+
+    if (game.roomCode) {
+      this.byRoomCode.delete(game.roomCode);
+    }
+    for (const color of ["blue", "red"] as const) {
+      const seat = game.seats[color];
+      if (seat) this.playerToGame.delete(seat.playerId);
+    }
+    this.games.delete(gameId);
+    return true;
+  }
+
+  /** Placeholder wire state for a waiting private room (no engine yet). */
+  waitingPlaceholder(game: ActiveGame): WireGameState {
+    return {
+      gameId: game.id,
+      ruleset: "classic",
+      rulesetVersion: "2017.1",
+      board: { width: DEFAULT_BOARD_WIDTH, height: DEFAULT_BOARD_HEIGHT, cells: [] },
+      currentPlayer: "blue",
+      players: {
+        blue: game.seats.blue?.playerId ?? "00000000-0000-4000-8000-000000000000",
+        red: game.seats.red?.playerId ?? "00000000-0000-4000-8000-000000000001",
+      },
+      scores: { blue: 0, red: 0 },
+      version: 0,
+      status: "in_progress",
+      winner: null,
+    };
+  }
+
   applyPlayerMove(input: {
     gameId: string;
     playerId: string;

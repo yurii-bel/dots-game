@@ -21,6 +21,7 @@ describe("socket contracts", () => {
   it("exposes stable event names", () => {
     expect(SocketEvents.gameMove).toBe("game:move");
     expect(SocketEvents.gameMoveAccepted).toBe("game:move:accepted");
+    expect(SocketEvents.gameLeave).toBe("game:leave");
   });
 
   it("validates a move payload", () => {

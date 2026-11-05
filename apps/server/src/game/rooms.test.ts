@@ -125,4 +125,63 @@ describe("GameRoomRegistry", () => {
     expect(game.seats.blue?.connected).toBe(true);
     expect(game.seats.blue?.socketId).toBe("s1-new");
   });
+
+  it("destroys empty waiting private room on host leave and invalidates code", async () => {
+    const host = randomUUID();
+    const { game, roomCode } = await registry.createPrivateRoom({
+      playerId: host,
+      socketId: "host",
+    });
+
+    const result = registry.leave(game.id, host);
+    expect(result?.kind).toBe("destroyed");
+    expect(registry.get(game.id)).toBeUndefined();
+    expect(registry.findByRoomCode(roomCode)).toBeUndefined();
+    expect(registry.findByPlayer(host)).toBeUndefined();
+
+    // Host can create a new room after leaving.
+    const again = await registry.createPrivateRoom({
+      playerId: host,
+      socketId: "host-2",
+    });
+    expect(again.game.status).toBe("waiting");
+  });
+
+  it("leave during in-progress resigns (private or matchmaking)", async () => {
+    const blueId = randomUUID();
+    const redId = randomUUID();
+    const game = await registry.createMatchmakingGame({
+      blue: { playerId: blueId, socketId: "s1" },
+      red: { playerId: redId, socketId: "s2" },
+    });
+
+    const result = registry.leave(game.id, blueId);
+    expect(result?.kind).toBe("resigned");
+    expect(game.status).toBe("finished");
+    expect(game.finishedReason).toBe("resign");
+    expect(game.winner).toBe("red");
+    // Soft reconnect of the same id into a finished game seat is still possible.
+    expect(registry.colorOf(game, blueId)).toBe("blue");
+  });
+
+  it("soft disconnect keeps in-progress seat reclaimable by same playerId", async () => {
+    const blueId = randomUUID();
+    const redId = randomUUID();
+    const game = await registry.createMatchmakingGame({
+      blue: { playerId: blueId, socketId: "s1" },
+      red: { playerId: redId, socketId: "s2" },
+    });
+
+    registry.markDisconnected("s1");
+    const rejoined = await registry.joinPrivateRoom({
+      gameIdOrCode: game.id,
+      playerId: blueId,
+      socketId: "s1-re",
+    });
+    expect(rejoined.color).toBe("blue");
+    expect(rejoined.justStarted).toBe(false);
+    expect(game.seats.blue?.connected).toBe(true);
+    expect(game.status).toBe("in_progress");
+  });
+
 });
