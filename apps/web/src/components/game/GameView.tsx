@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import { GameBoard } from "@/components/game/GameBoard";
 import { GameChrome } from "@/components/game/GameChrome";
 import { submitMove, useGameSocket } from "@/hooks/use-game-socket";
+import { unlockSfx } from "@/lib/sounds/player";
 import { useGameStore } from "@/stores/game-store";
 import { DEFAULT_BOARD_HEIGHT, DEFAULT_BOARD_WIDTH } from "@dots/shared";
 
@@ -19,6 +21,17 @@ export function GameView() {
   const yourColor = useGameStore((s) => s.yourColor);
   const pending = useGameStore((s) => s.pending);
   const connection = useGameStore((s) => s.connection);
+
+  // Unlock audio on first gesture so opponent moves can play under autoplay rules.
+  useEffect(() => {
+    const unlock = () => unlockSfx();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
 
   const board = state?.board.cells.length ? state.board : emptyBoard;
   const myTurn =

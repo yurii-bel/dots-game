@@ -20,6 +20,8 @@ import {
   loadActiveGame,
   saveActiveGame,
 } from "@/lib/player-id";
+import { shouldPlayMoveSound } from "@/lib/sounds/move-dedupe";
+import { playSfx } from "@/lib/sounds/player";
 import { useGameStore } from "@/stores/game-store";
 
 function finishedLabel(payload: GameFinishedPayload): string {
@@ -108,6 +110,18 @@ export function useGameSocket(): void {
     };
 
     const onAccepted = (payload: GameMoveAcceptedPayload) => {
+      // SFX only here — never on game:state / sync / pending (avoids doubles).
+      const gameId =
+        useGameStore.getState().gameId ?? payload.state.gameId;
+      if (
+        shouldPlayMoveSound({
+          gameId,
+          moveNumber: payload.move.moveNumber,
+          requestId: payload.requestId,
+        })
+      ) {
+        playSfx("placeDot");
+      }
       useGameStore.getState().confirmMove(payload);
     };
 
