@@ -15,7 +15,7 @@ import {
   type WireGameState,
 } from "@dots/shared";
 import { matchmakingQueue } from "../matchmaking/queue.js";
-import { rooms, type ActiveGame } from "../game/rooms.js";
+import { rooms, timingFields, type ActiveGame } from "../game/rooms.js";
 
 function emitError(socket: Socket, payload: ServerErrorPayload): void {
   socket.emit(SocketEvents.serverError, payload);
@@ -37,10 +37,12 @@ function broadcastFinished(io: Server, game: ActiveGame): void {
     reason: game.finishedReason,
     winner: game.winner,
     state,
+    ...timingFields(game),
   });
 }
 
 function emitStartedToSeats(io: Server, game: ActiveGame, state: WireGameState): void {
+  const timing = timingFields(game);
   for (const color of ["blue", "red"] as const) {
     const seat = game.seats[color];
     if (!seat?.socketId) continue;
@@ -52,8 +54,9 @@ function emitStartedToSeats(io: Server, game: ActiveGame, state: WireGameState):
       color,
       state,
       roomCode: game.roomCode ?? undefined,
+      ...timing,
     });
-    target.emit(SocketEvents.gameState, { state, yourColor: color });
+    target.emit(SocketEvents.gameState, { state, yourColor: color, ...timing });
   }
 }
 
@@ -72,7 +75,11 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       joinSocketRoom(socket, existing.id);
       const state = rooms.wire(existing);
       if (state && color) {
-        socket.emit(SocketEvents.gameState, { state, yourColor: color });
+        socket.emit(SocketEvents.gameState, {
+          state,
+          yourColor: color,
+          ...timingFields(existing),
+        });
       }
       return;
     }
@@ -100,6 +107,7 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       })
       .then((game) => {
         const state = rooms.wire(game)!;
+        const timing = timingFields(game);
         for (const color of ["blue", "red"] as const) {
           const seat = game.seats[color]!;
           const target = io.sockets.sockets.get(seat.socketId ?? "");
@@ -109,13 +117,15 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
             gameId: game.id,
             color,
             state,
+            ...timing,
           });
           target.emit(SocketEvents.gameStarted, {
             gameId: game.id,
             color,
             state,
+            ...timing,
           });
-          target.emit(SocketEvents.gameState, { state, yourColor: color });
+          target.emit(SocketEvents.gameState, { state, yourColor: color, ...timing });
         }
       })
       .catch((err: unknown) => {
@@ -154,12 +164,13 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
           color,
         };
         ack?.(payload);
-        // Lobby only — full board arrives on game:started when opponent joins.
+        // Lobby only — full board + startedAt arrive when opponent joins.
         socket.emit(SocketEvents.gameStarted, {
           gameId: game.id,
           color,
           roomCode,
           state: rooms.waitingPlaceholder(game),
+          ...timingFields(game),
         });
       })
       .catch((err: unknown) => {
@@ -196,7 +207,8 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
 
         if (state) {
           // Reconnect into an in-progress (or finished) game.
-          socket.emit(SocketEvents.gameState, { state, yourColor: color });
+          const timing = timingFields(game);
+          socket.emit(SocketEvents.gameState, { state, yourColor: color, ...timing });
           socket.to(roomName(game.id)).emit(SocketEvents.gameOpponentReconnected, {
             gameId: game.id,
             playerId: parsed.data.playerId,
@@ -208,6 +220,7 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
               reason: game.finishedReason,
               winner: game.winner,
               state,
+              ...timing,
             });
           }
           return;
@@ -219,6 +232,7 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
           color,
           roomCode: game.roomCode ?? undefined,
           state: rooms.waitingPlaceholder(game),
+          ...timingFields(game),
         });
       })
       .catch((err: unknown) => {
@@ -264,12 +278,15 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
         color,
         roomCode: game.roomCode ?? undefined,
         state: rooms.waitingPlaceholder(game),
+        ...timingFields(game),
       });
       return;
     }
 
+    const timing = timingFields(game);
+
     if (state) {
-      socket.emit(SocketEvents.gameState, { state, yourColor: color });
+      socket.emit(SocketEvents.gameState, { state, yourColor: color, ...timing });
       socket.to(roomName(game.id)).emit(SocketEvents.gameOpponentReconnected, {
         gameId: game.id,
         playerId: parsed.data.playerId,
@@ -283,6 +300,7 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
         reason: game.finishedReason,
         winner: game.winner,
         state,
+        ...timing,
       });
     }
   });
@@ -347,6 +365,7 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
 
     // Broadcast accepted move + authoritative state to the Socket.IO room.
     io.to(roomName(result.game.id)).emit(SocketEvents.gameMoveAccepted, result.payload);
+    const timing = timingFields(result.game);
     for (const color of ["blue", "red"] as const) {
       const seat = result.game.seats[color];
       if (!seat?.socketId) continue;
@@ -354,6 +373,7 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       target?.emit(SocketEvents.gameState, {
         state: result.payload.state,
         yourColor: color,
+        ...timing,
       });
     }
 

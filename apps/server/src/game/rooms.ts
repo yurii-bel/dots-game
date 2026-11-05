@@ -42,9 +42,24 @@ export type ActiveGame = {
   engine: GameState | null;
   winner: PlayerColor | null;
   finishedReason: "board_full" | "resign" | "disconnect_forfeit" | "landing" | null;
+  /** Server wall-clock ms when startEngine ran; null while waiting. */
+  startedAt: number | null;
+  /** Server wall-clock ms when status became finished; null until then. */
+  finishedAt: number | null;
   /** requestId → prior move result (idempotency). */
   moveResults: Map<string, MoveResultCache>;
 };
+
+/** Optional timing fields for socket payloads (shape A). */
+export function timingFields(game: ActiveGame): {
+  startedAt?: number;
+  finishedAt?: number;
+} {
+  return {
+    ...(game.startedAt != null ? { startedAt: game.startedAt } : {}),
+    ...(game.finishedAt != null ? { finishedAt: game.finishedAt } : {}),
+  };
+}
 
 function roomCode(): string {
   return randomBytes(3).toString("hex").toUpperCase();
@@ -112,6 +127,8 @@ export class GameRoomRegistry {
       engine: null,
       winner: null,
       finishedReason: null,
+      startedAt: null,
+      finishedAt: null,
       moveResults: new Map(),
     };
 
@@ -224,6 +241,8 @@ export class GameRoomRegistry {
       engine: null,
       winner: null,
       finishedReason: null,
+      startedAt: null,
+      finishedAt: null,
       moveResults: new Map(),
     };
 
@@ -272,6 +291,15 @@ export class GameRoomRegistry {
       },
     });
     game.status = "in_progress";
+    if (game.startedAt == null) {
+      game.startedAt = Date.now();
+    }
+  }
+
+  private markFinished(game: ActiveGame): void {
+    if (game.finishedAt == null) {
+      game.finishedAt = Date.now();
+    }
   }
 
   attachSocket(game: ActiveGame, playerId: string, socketId: string): PlayerColor | null {
@@ -471,6 +499,7 @@ export class GameRoomRegistry {
       game.status = "finished";
       game.finishedReason = result.game.finishedReason ?? "board_full";
       game.winner = result.game.winner;
+      this.markFinished(game);
       void persistGameFinished({
         gameId: game.id,
         winner: game.winner,
@@ -516,6 +545,7 @@ export class GameRoomRegistry {
     game.status = "finished";
     game.finishedReason = "resign";
     game.winner = winner;
+    this.markFinished(game);
     game.engine = {
       ...game.engine,
       status: "finished",
@@ -546,6 +576,7 @@ export class GameRoomRegistry {
     game.status = "finished";
     game.finishedReason = "landing";
     game.winner = result.game.winner;
+    this.markFinished(game);
 
     void persistGameFinished({
       gameId: game.id,

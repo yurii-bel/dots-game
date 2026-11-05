@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { HealthResponseSchema } from "./schemas";
 import {
+  GameFinishedPayloadSchema,
   GameMovePayloadSchema,
+  GameStartedPayloadSchema,
   SocketEvents,
   WireGameStateSchema,
 } from "./socket";
@@ -54,5 +56,40 @@ describe("socket contracts", () => {
         status: "in_progress",
       }),
     ).toThrow();
+  });
+
+  it("accepts optional timing fields on start/finished payloads", () => {
+    const blue = "11111111-1111-4111-8111-111111111111";
+    const red = "22222222-2222-4222-8222-222222222222";
+    const state = {
+      gameId: "g1",
+      ruleset: "classic" as const,
+      rulesetVersion: "2017.1",
+      board: { width: 2, height: 2, cells: [] },
+      currentPlayer: "blue" as const,
+      players: { blue, red },
+      scores: { blue: 0, red: 0 },
+      version: 0,
+      status: "in_progress" as const,
+    };
+
+    const started = GameStartedPayloadSchema.parse({
+      gameId: "g1",
+      color: "blue",
+      state,
+      startedAt: 1_700_000_000_000,
+    });
+    expect(started.startedAt).toBe(1_700_000_000_000);
+    expect(started.finishedAt).toBeUndefined();
+
+    const finished = GameFinishedPayloadSchema.parse({
+      gameId: "g1",
+      reason: "resign",
+      winner: "red",
+      state: { ...state, status: "finished" },
+      startedAt: 1_700_000_000_000,
+      finishedAt: 1_700_000_065_000,
+    });
+    expect(finished.finishedAt).toBe(1_700_000_065_000);
   });
 });

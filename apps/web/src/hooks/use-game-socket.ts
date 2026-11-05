@@ -74,6 +74,8 @@ export function useGameSocket(): void {
         yourColor: payload.color,
         state: payload.state,
         roomCode: payload.roomCode,
+        startedAt: payload.startedAt ?? null,
+        finishedAt: payload.finishedAt ?? null,
       });
       saveActiveGame({ gameId: payload.gameId, roomCode: payload.roomCode });
     };
@@ -83,12 +85,17 @@ export function useGameSocket(): void {
         gameId: payload.gameId,
         yourColor: payload.color,
         state: payload.state,
+        startedAt: payload.startedAt ?? null,
+        finishedAt: payload.finishedAt ?? null,
       });
       saveActiveGame({ gameId: payload.gameId });
     };
 
     const onState = (payload: GameStatePayload) => {
-      useGameStore.getState().applyState(payload.state, payload.yourColor);
+      useGameStore.getState().applyState(payload.state, payload.yourColor, {
+        startedAt: payload.startedAt,
+        finishedAt: payload.finishedAt,
+      });
       if (payload.state.board.cells.length > 0) {
         const prev = loadActiveGame();
         const roomCode =
@@ -117,7 +124,10 @@ export function useGameSocket(): void {
     };
 
     const onFinished = (payload: GameFinishedPayload) => {
-      useGameStore.getState().setFinished(finishedLabel(payload), payload.state);
+      useGameStore.getState().setFinished(finishedLabel(payload), payload.state, {
+        startedAt: payload.startedAt,
+        finishedAt: payload.finishedAt,
+      });
       clearActiveGame();
     };
 

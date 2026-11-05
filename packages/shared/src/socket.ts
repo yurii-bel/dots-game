@@ -154,20 +154,31 @@ export type GameLeavePayload = z.infer<typeof GameLeavePayloadSchema>;
 
 // --- Server → client payloads ---
 
-export const MatchmakingFoundPayloadSchema = z.object({
-  gameId: z.string().min(1),
-  color: PlayerColorSchema,
-  state: WireGameStateSchema,
+/** Server wall-clock ms epoch; omitted while waiting / before startEngine. */
+export const GameTimingFieldsSchema = z.object({
+  startedAt: z.number().int().nonnegative().optional(),
+  finishedAt: z.number().int().nonnegative().optional(),
 });
+export type GameTimingFields = z.infer<typeof GameTimingFieldsSchema>;
+
+export const MatchmakingFoundPayloadSchema = z
+  .object({
+    gameId: z.string().min(1),
+    color: PlayerColorSchema,
+    state: WireGameStateSchema,
+  })
+  .merge(GameTimingFieldsSchema);
 export type MatchmakingFoundPayload = z.infer<typeof MatchmakingFoundPayloadSchema>;
 
-export const GameStartedPayloadSchema = z.object({
-  gameId: z.string().min(1),
-  color: PlayerColorSchema,
-  state: WireGameStateSchema,
-  /** Present for private rooms so the host can share a join code. */
-  roomCode: z.string().min(1).optional(),
-});
+export const GameStartedPayloadSchema = z
+  .object({
+    gameId: z.string().min(1),
+    color: PlayerColorSchema,
+    state: WireGameStateSchema,
+    /** Present for private rooms so the host can share a join code. */
+    roomCode: z.string().min(1).optional(),
+  })
+  .merge(GameTimingFieldsSchema);
 export type GameStartedPayload = z.infer<typeof GameStartedPayloadSchema>;
 
 export const GameMoveAcceptedPayloadSchema = z.object({
@@ -192,10 +203,12 @@ export const GameMoveRejectedPayloadSchema = z.object({
 });
 export type GameMoveRejectedPayload = z.infer<typeof GameMoveRejectedPayloadSchema>;
 
-export const GameStatePayloadSchema = z.object({
-  state: WireGameStateSchema,
-  yourColor: PlayerColorSchema.nullable(),
-});
+export const GameStatePayloadSchema = z
+  .object({
+    state: WireGameStateSchema,
+    yourColor: PlayerColorSchema.nullable(),
+  })
+  .merge(GameTimingFieldsSchema);
 export type GameStatePayload = z.infer<typeof GameStatePayloadSchema>;
 
 export const GameOpponentPresencePayloadSchema = z.object({
@@ -207,12 +220,14 @@ export type GameOpponentPresencePayload = z.infer<
   typeof GameOpponentPresencePayloadSchema
 >;
 
-export const GameFinishedPayloadSchema = z.object({
-  gameId: z.string().min(1),
-  reason: z.enum(["board_full", "resign", "disconnect_forfeit", "landing"]),
-  winner: PlayerColorSchema.nullable(),
-  state: WireGameStateSchema,
-});
+export const GameFinishedPayloadSchema = z
+  .object({
+    gameId: z.string().min(1),
+    reason: z.enum(["board_full", "resign", "disconnect_forfeit", "landing"]),
+    winner: PlayerColorSchema.nullable(),
+    state: WireGameStateSchema,
+  })
+  .merge(GameTimingFieldsSchema);
 export type GameFinishedPayload = z.infer<typeof GameFinishedPayloadSchema>;
 
 export const ServerErrorPayloadSchema = z.object({

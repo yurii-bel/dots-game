@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { GameTimer } from "@/components/game/GameTimer";
 import {
   declareLandingGame,
   leaveGame,
@@ -53,6 +54,7 @@ export function GameChrome() {
             )}
           </h1>
           <span className="text-sm text-muted-foreground">{turnLabel}</span>
+          <GameTimer />
         </div>
         <div className="flex flex-wrap gap-4 text-sm">
           <span>
