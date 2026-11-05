@@ -26,6 +26,11 @@ export type PendingMove = {
   expectedVersion: number;
 };
 
+type TimingInput = {
+  startedAt?: number | null;
+  finishedAt?: number | null;
+};
+
 type GameStore = {
   playerId: string | null;
   displayName: string;
@@ -38,6 +43,10 @@ type GameStore = {
   opponentConnected: boolean;
   lastError: string | null;
   finishedMessage: string | null;
+  /** Server epoch ms when play began; null while waiting. */
+  startedAt: number | null;
+  /** Server epoch ms when finished; null until then. */
+  finishedAt: number | null;
 
   setIdentity: (playerId: string, displayName: string) => void;
   setConnection: (connection: ConnectionStatus) => void;
@@ -51,16 +60,37 @@ type GameStore = {
     yourColor: PlayerColor;
     state: WireGameState;
     roomCode?: string;
-  }) => void;
-  applyState: (state: WireGameState, yourColor?: PlayerColor | null) => void;
+  } & TimingInput) => void;
+  applyState: (
+    state: WireGameState,
+    yourColor?: PlayerColor | null,
+    timing?: TimingInput,
+  ) => void;
   setPending: (pending: PendingMove | null) => void;
   confirmMove: (payload: GameMoveAcceptedPayload) => void;
   rejectMove: (payload: GameMoveRejectedPayload) => void;
   setOpponentConnected: (connected: boolean) => void;
   setError: (message: string | null) => void;
-  setFinished: (message: string, state: WireGameState) => void;
+  setFinished: (message: string, state: WireGameState, timing?: TimingInput) => void;
   resetMatch: () => void;
 };
+
+function nextTiming(
+  current: { startedAt: number | null; finishedAt: number | null },
+  timing?: TimingInput,
+): { startedAt: number | null; finishedAt: number | null } {
+  if (!timing) return current;
+  return {
+    startedAt:
+      timing.startedAt === undefined
+        ? current.startedAt
+        : timing.startedAt,
+    finishedAt:
+      timing.finishedAt === undefined
+        ? current.finishedAt
+        : timing.finishedAt,
+  };
+}
 
 export const useGameStore = create<GameStore>((set, get) => ({
   playerId: null,
@@ -74,6 +104,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   opponentConnected: true,
   lastError: null,
   finishedMessage: null,
+  startedAt: null,
+  finishedAt: null,
 
   setIdentity: (playerId, displayName) => set({ playerId, displayName }),
 
@@ -87,9 +119,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       connection: "waiting",
       lastError: null,
       finishedMessage: null,
+      startedAt: null,
+      finishedAt: null,
     }),
 
-  applyStarted: ({ gameId, yourColor, state, roomCode }) =>
+  applyStarted: ({ gameId, yourColor, state, roomCode, startedAt, finishedAt }) =>
     set({
       gameId,
       yourColor,
@@ -100,9 +134,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastError: null,
       finishedMessage: null,
       opponentConnected: true,
+      ...nextTiming(get(), { startedAt, finishedAt }),
     }),
 
-  applyState: (state, yourColor) =>
+  applyState: (state, yourColor, timing) =>
     set({
       state,
       yourColor: yourColor === undefined ? get().yourColor : yourColor,
@@ -113,6 +148,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             ? "playing"
             : get().connection,
       gameId: state.gameId,
+      ...nextTiming(get(), timing),
     }),
 
   setPending: (pending) => set({ pending }),
@@ -150,12 +186,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setError: (lastError) =>
     set({ lastError, connection: lastError ? "error" : get().connection }),
 
-  setFinished: (finishedMessage, state) =>
+  setFinished: (finishedMessage, state, timing) =>
     set({
       finishedMessage,
       state,
       connection: "finished",
       pending: null,
+      ...nextTiming(get(), timing),
     }),
 
   resetMatch: () =>
@@ -169,5 +206,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       opponentConnected: true,
       lastError: null,
       finishedMessage: null,
+      startedAt: null,
+      finishedAt: null,
     }),
 }));

@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { randomUUID } from "node:crypto";
-import { GameRoomRegistry } from "./rooms.js";
+import { GameRoomRegistry, timingFields } from "./rooms.js";
 
 describe("GameRoomRegistry", () => {
   let registry: GameRoomRegistry;
@@ -96,6 +96,8 @@ describe("GameRoomRegistry", () => {
     });
     expect(game.status).toBe("waiting");
     expect(roomCode).toHaveLength(6);
+    expect(game.startedAt).toBeNull();
+    expect(timingFields(game)).toEqual({});
 
     const joined = await registry.joinPrivateRoom({
       gameIdOrCode: roomCode,
@@ -106,6 +108,31 @@ describe("GameRoomRegistry", () => {
     expect(joined.justStarted).toBe(true);
     expect(joined.game.engine?.players.blue).toBe(host);
     expect(joined.game.engine?.players.red).toBe(guest);
+    expect(joined.game.startedAt).toEqual(expect.any(Number));
+    expect(timingFields(joined.game)).toEqual({ startedAt: joined.game.startedAt });
+  });
+
+  it("sets startedAt at startEngine and finishedAt on resign", async () => {
+    const blueId = randomUUID();
+    const redId = randomUUID();
+    const before = Date.now();
+    const game = await registry.createMatchmakingGame({
+      blue: { playerId: blueId, socketId: "s1" },
+      red: { playerId: redId, socketId: "s2" },
+    });
+    const afterStart = Date.now();
+
+    expect(game.startedAt).toBeGreaterThanOrEqual(before);
+    expect(game.startedAt).toBeLessThanOrEqual(afterStart);
+    expect(game.finishedAt).toBeNull();
+
+    const resigned = registry.resign(game.id, blueId);
+    expect(resigned?.finishedAt).toEqual(expect.any(Number));
+    expect(resigned!.finishedAt!).toBeGreaterThanOrEqual(resigned!.startedAt!);
+    expect(timingFields(resigned!)).toEqual({
+      startedAt: resigned!.startedAt,
+      finishedAt: resigned!.finishedAt,
+    });
   });
 
   it("reattaches socket on reconnect via sync path", async () => {
