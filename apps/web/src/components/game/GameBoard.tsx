@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PlayerColor, WireBoard } from "@dots/shared";
 import { canvasToFormal } from "./board-geometry";
-import { drawBoard, layoutForContainer } from "./draw-board";
+import { drawBoard, isCellPlayable, layoutForContainer } from "./draw-board";
 
 type GameBoardProps = {
   board: WireBoard;
@@ -71,10 +71,11 @@ export function GameBoard({
       board,
       layout,
       hover: interactive ? hover : null,
+      yourColor,
       pending,
       dpr,
     });
-  }, [board, layout, hover, pending, interactive]);
+  }, [board, layout, hover, pending, interactive, yourColor]);
 
   const resolvePoint = useCallback(
     (clientX: number, clientY: number) => {
@@ -91,7 +92,12 @@ export function GameBoard({
       setHover(null);
       return;
     }
-    setHover(resolvePoint(clientX, clientY));
+    const point = resolvePoint(clientX, clientY);
+    if (!point || !isCellPlayable(board, point.x, point.y)) {
+      setHover(null);
+      return;
+    }
+    setHover(point);
   };
 
   const handlePlace = (clientX: number, clientY: number) => {
@@ -108,7 +114,7 @@ export function GameBoard({
     >
       <canvas
         ref={canvasRef}
-        className="touch-none max-h-full max-w-full cursor-crosshair"
+        className="touch-none max-h-full max-w-full cursor-default"
         role="img"
         aria-label="DOTS game board"
         onMouseMove={(e) => handlePointerMove(e.clientX, e.clientY)}

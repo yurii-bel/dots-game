@@ -10,8 +10,10 @@ const COLORS = {
   blueTerritory: "rgba(37, 99, 235, 0.22)",
   redTerritory: "rgba(220, 38, 38, 0.22)",
   pending: "rgba(15, 23, 42, 0.35)",
-  hover: "rgba(15, 23, 42, 0.18)",
 } as const;
+
+/** Preview ghost opacity (Task 3). Distinct from pending (0.55). */
+export const HOVER_PREVIEW_ALPHA = 0.85;
 
 function cellAt(board: WireBoard, x: number, y: number): WireCell | null {
   if (board.cells.length === 0) return null;
@@ -19,17 +21,25 @@ function cellAt(board: WireBoard, x: number, y: number): WireCell | null {
   return board.cells[idx] ?? null;
 }
 
+/** Empty, non-disabled intersection — client heuristic matching applyMove occupied/disabled rejects. */
+export function isCellPlayable(board: WireBoard, x: number, y: number): boolean {
+  const cell = cellAt(board, x, y);
+  if (!cell) return false;
+  return cell.color === null && !cell.disabled;
+}
+
 export type DrawOptions = {
   board: WireBoard;
   layout: BoardLayout;
   hover: { x: number; y: number } | null;
+  yourColor: PlayerColor | null;
   pending: { x: number; y: number; color: PlayerColor } | null;
   dpr: number;
 };
 
 export function drawBoard(
   ctx: CanvasRenderingContext2D,
-  { board, layout, hover, pending, dpr }: DrawOptions,
+  { board, layout, hover, yourColor, pending, dpr }: DrawOptions,
 ): void {
   const { cssWidth, cssHeight, cell } = layout;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -97,13 +107,15 @@ export function drawBoard(
     }
   }
 
-  // Hover ghost
-  if (hover) {
+  // Hover preview — player color @ 85%, legal empty cells only
+  if (hover && yourColor && isCellPlayable(board, hover.x, hover.y)) {
     const { cx, cy } = formalToCanvas(layout, board, hover.x, hover.y);
     ctx.beginPath();
-    ctx.fillStyle = COLORS.hover;
+    ctx.fillStyle = yourColor === "blue" ? COLORS.blue : COLORS.red;
+    ctx.globalAlpha = HOVER_PREVIEW_ALPHA;
     ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
     ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   // Optimistic pending move
