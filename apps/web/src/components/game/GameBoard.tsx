@@ -57,12 +57,6 @@ export function GameBoard({
 
   const layout = layoutForContainer(board, size.w, size.h);
 
-  const previewActive =
-    interactive &&
-    !!yourColor &&
-    !!hover &&
-    isCellPlayable(board, hover.x, hover.y);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -120,7 +114,7 @@ export function GameBoard({
     >
       <canvas
         ref={canvasRef}
-        className={`touch-none max-h-full max-w-full ${previewActive ? "cursor-none" : "cursor-default"}`}
+        className="touch-none max-h-full max-w-full cursor-default"
         role="img"
         aria-label="DOTS game board"
         onMouseMove={(e) => handlePointerMove(e.clientX, e.clientY)}
