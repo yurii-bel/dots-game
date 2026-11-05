@@ -90,7 +90,13 @@ export function useGameSocket(): void {
     const onState = (payload: GameStatePayload) => {
       useGameStore.getState().applyState(payload.state, payload.yourColor);
       if (payload.state.board.cells.length > 0) {
-        saveActiveGame({ gameId: payload.state.gameId });
+        const prev = loadActiveGame();
+        const roomCode =
+          useGameStore.getState().roomCode ?? prev?.roomCode ?? undefined;
+        saveActiveGame({
+          gameId: payload.state.gameId,
+          ...(roomCode ? { roomCode } : {}),
+        });
       }
     };
 
@@ -116,6 +122,10 @@ export function useGameSocket(): void {
     };
 
     const onError = (payload: ServerErrorPayload) => {
+      if (payload.code === "GAME_NOT_FOUND") {
+        clearActiveGame();
+        useGameStore.getState().resetMatch();
+      }
       useGameStore.getState().setError(payload.message);
     };
 
@@ -233,4 +243,36 @@ export function declareLandingGame(): void {
   const { playerId, gameId } = useGameStore.getState();
   if (!playerId || !gameId) return;
   getSocket().emit(SocketEvents.gameLanding, { gameId, playerId });
+}
+
+/**
+ * Soft navigate to lobby: keep localStorage session for Resume; clear Zustand
+ * so the lobby does not immediately bounce back into /game/:id.
+ */
+export function parkGameSession(): void {
+  const { gameId, roomCode } = useGameStore.getState();
+  if (gameId) {
+    const prev = loadActiveGame();
+    saveActiveGame({
+      gameId,
+      roomCode: roomCode ?? prev?.roomCode,
+    });
+  }
+  useGameStore.getState().resetMatch();
+}
+
+/**
+ * Explicit leave (private + matchmaking):
+ * server frees waiting seat / destroys empty room, or resigns if in progress.
+ * Clears local session so Lobby no longer offers Resume for this game.
+ */
+export function leaveGame(opts?: { gameId?: string }): void {
+  const store = useGameStore.getState();
+  const playerId = store.playerId ?? getOrCreatePlayerId();
+  const gameId = opts?.gameId ?? store.gameId;
+  if (playerId && gameId) {
+    getSocket().emit(SocketEvents.gameLeave, { gameId, playerId });
+  }
+  clearActiveGame();
+  useGameStore.getState().resetMatch();
 }

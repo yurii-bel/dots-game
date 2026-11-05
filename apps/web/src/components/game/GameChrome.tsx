@@ -1,11 +1,17 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { declareLandingGame, resignGame } from "@/hooks/use-game-socket";
+import {
+  declareLandingGame,
+  leaveGame,
+  parkGameSession,
+  resignGame,
+} from "@/hooks/use-game-socket";
 import { useGameStore } from "@/stores/game-store";
 
 export function GameChrome() {
+  const router = useRouter();
   const connection = useGameStore((s) => s.connection);
   const yourColor = useGameStore((s) => s.yourColor);
   const state = useGameStore((s) => s.state);
@@ -22,6 +28,12 @@ export function GameChrome() {
       : state.currentPlayer === yourColor
         ? "Your turn"
         : "Opponent’s turn";
+
+  const canLeave =
+    connection === "waiting" ||
+    connection === "playing" ||
+    connection === "finished" ||
+    connection === "error";
 
   return (
     <header className="flex flex-col gap-3 border-b border-border/80 pb-4 sm:flex-row sm:items-end sm:justify-between">
@@ -86,9 +98,31 @@ export function GameChrome() {
             </Button>
           </>
         ) : null}
-        <Button type="button" variant="ghost" size="sm" asChild>
-          <Link href="/">Lobby</Link>
+        {/* Soft navigate — parks Zustand, keeps localStorage for Resume. */}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            parkGameSession();
+            router.push("/");
+          }}
+        >
+          Lobby
         </Button>
+        {canLeave ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              leaveGame();
+              router.push("/");
+            }}
+          >
+            Leave
+          </Button>
+        ) : null}
       </div>
     </header>
   );

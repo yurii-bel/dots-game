@@ -3,6 +3,7 @@ import {
   GameCreatePayloadSchema,
   GameJoinPayloadSchema,
   GameLandingPayloadSchema,
+  GameLeavePayloadSchema,
   GameMovePayloadSchema,
   GameResignPayloadSchema,
   GameSyncPayloadSchema,
@@ -158,23 +159,7 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
           gameId: game.id,
           color,
           roomCode,
-          // Minimal placeholder until engine starts; clients treat empty cells as lobby.
-          state: {
-            gameId: game.id,
-            ruleset: "classic",
-            rulesetVersion: "2017.1",
-            board: { width: 39, height: 32, cells: [] },
-            currentPlayer: "blue",
-            players: {
-              blue: parsed.data.playerId,
-              // Placeholder until seat filled — valid UUID for schema consumers.
-              red: "00000000-0000-4000-8000-000000000000",
-            },
-            scores: { blue: 0, red: 0 },
-            version: 0,
-            status: "in_progress",
-            winner: null,
-          },
+          state: rooms.waitingPlaceholder(game),
         });
       })
       .catch((err: unknown) => {
@@ -233,21 +218,7 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
           gameId: game.id,
           color,
           roomCode: game.roomCode ?? undefined,
-          state: {
-            gameId: game.id,
-            ruleset: "classic",
-            rulesetVersion: "2017.1",
-            board: { width: 39, height: 32, cells: [] },
-            currentPlayer: "blue",
-            players: {
-              blue: game.seats.blue?.playerId ?? "00000000-0000-4000-8000-000000000000",
-              red: game.seats.red?.playerId ?? "00000000-0000-4000-8000-000000000001",
-            },
-            scores: { blue: 0, red: 0 },
-            version: 0,
-            status: "in_progress",
-            winner: null,
-          },
+          state: rooms.waitingPlaceholder(game),
         });
       })
       .catch((err: unknown) => {
@@ -285,6 +256,18 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
 
     joinSocketRoom(socket, game.id);
     const state = rooms.wire(game);
+
+    if (!state && game.status === "waiting") {
+      // Waiting private room — restore lobby chrome without an engine board.
+      socket.emit(SocketEvents.gameStarted, {
+        gameId: game.id,
+        color,
+        roomCode: game.roomCode ?? undefined,
+        state: rooms.waitingPlaceholder(game),
+      });
+      return;
+    }
+
     if (state) {
       socket.emit(SocketEvents.gameState, { state, yourColor: color });
       socket.to(roomName(game.id)).emit(SocketEvents.gameOpponentReconnected, {
@@ -302,6 +285,50 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
         state,
       });
     }
+  });
+
+  socket.on(SocketEvents.gameLeave, (raw: unknown) => {
+    const parsed = GameLeavePayloadSchema.safeParse(raw);
+    if (!parsed.success) {
+      emitError(socket, { code: "INVALID_PAYLOAD", message: "Invalid game:leave" });
+      return;
+    }
+
+    const result = rooms.leave(parsed.data.gameId, parsed.data.playerId);
+    if (!result) {
+      emitError(socket, { code: "NOT_IN_GAME", message: "Cannot leave this game" });
+      return;
+    }
+
+    void socket.leave(roomName(parsed.data.gameId));
+
+    if (result.kind === "destroyed") {
+      return;
+    }
+
+    if (result.kind === "noop_finished") {
+      return;
+    }
+
+    if (result.kind === "seat_freed") {
+      socket.to(roomName(result.game.id)).emit(SocketEvents.gameOpponentDisconnected, {
+        gameId: result.game.id,
+        playerId: result.playerId,
+        color: result.color,
+      });
+      return;
+    }
+
+    // in_progress leave → resign: notify presence then finished.
+    const color = rooms.colorOf(result.game, parsed.data.playerId);
+    if (color) {
+      socket.to(roomName(result.game.id)).emit(SocketEvents.gameOpponentDisconnected, {
+        gameId: result.game.id,
+        playerId: parsed.data.playerId,
+        color,
+      });
+    }
+    broadcastFinished(io, result.game);
   });
 
   socket.on(SocketEvents.gameMove, (raw: unknown) => {

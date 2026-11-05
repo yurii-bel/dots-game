@@ -72,6 +72,7 @@ export const SocketEvents = {
   gameMove: "game:move",
   gameResign: "game:resign",
   gameLanding: "game:landing",
+  gameLeave: "game:leave",
   gameSync: "game:sync",
   // Server → client
   matchmakingFound: "matchmaking:found",
@@ -143,6 +144,13 @@ export const GameSyncPayloadSchema = z.object({
   playerId: PlayerIdSchema,
 });
 export type GameSyncPayload = z.infer<typeof GameSyncPayloadSchema>;
+
+/** Explicit leave: waiting → release seat / destroy empty room; in_progress → resign. */
+export const GameLeavePayloadSchema = z.object({
+  gameId: z.string().min(1),
+  playerId: PlayerIdSchema,
+});
+export type GameLeavePayload = z.infer<typeof GameLeavePayloadSchema>;
 
 // --- Server → client payloads ---
 

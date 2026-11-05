@@ -1,5 +1,6 @@
 const STORAGE_KEY = "dots.playerId";
 const NAME_KEY = "dots.displayName";
+const ACTIVE_GAME_KEY = "dots.activeGame";
 
 function randomUuid(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -33,30 +34,49 @@ export function setDisplayName(name: string): void {
   window.localStorage.setItem(NAME_KEY, name.trim().slice(0, 32) || "Player");
 }
 
-const SESSION_GAME_KEY = "dots.activeGame";
-
 export type ActiveGameSession = {
   gameId: string;
   roomCode?: string;
 };
 
+/** Persist active private/matchmaking session (localStorage — Resume across tabs). */
 export function saveActiveGame(session: ActiveGameSession): void {
   if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(SESSION_GAME_KEY, JSON.stringify(session));
+  window.localStorage.setItem(ACTIVE_GAME_KEY, JSON.stringify(session));
+  // Drop legacy sessionStorage copy if present.
+  window.sessionStorage.removeItem(ACTIVE_GAME_KEY);
 }
 
 export function loadActiveGame(): ActiveGameSession | null {
   if (typeof window === "undefined") return null;
-  const raw = window.sessionStorage.getItem(SESSION_GAME_KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as ActiveGameSession;
-  } catch {
-    return null;
+
+  const fromLocal = readSession(window.localStorage.getItem(ACTIVE_GAME_KEY));
+  if (fromLocal) return fromLocal;
+
+  // One-time migrate from pre–Task 1 sessionStorage.
+  const legacy = readSession(window.sessionStorage.getItem(ACTIVE_GAME_KEY));
+  if (legacy) {
+    window.localStorage.setItem(ACTIVE_GAME_KEY, JSON.stringify(legacy));
+    window.sessionStorage.removeItem(ACTIVE_GAME_KEY);
+    return legacy;
   }
+
+  return null;
 }
 
 export function clearActiveGame(): void {
   if (typeof window === "undefined") return;
-  window.sessionStorage.removeItem(SESSION_GAME_KEY);
+  window.localStorage.removeItem(ACTIVE_GAME_KEY);
+  window.sessionStorage.removeItem(ACTIVE_GAME_KEY);
+}
+
+function readSession(raw: string | null): ActiveGameSession | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as ActiveGameSession;
+    if (!parsed?.gameId || typeof parsed.gameId !== "string") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
