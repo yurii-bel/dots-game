@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GameTimer } from "@/components/game/GameTimer";
 import {
@@ -9,6 +11,7 @@ import {
   parkGameSession,
   resignGame,
 } from "@/hooks/use-game-socket";
+import { isSfxMuted, setSfxMuted, unlockSfx } from "@/lib/sounds/player";
 import { useGameStore } from "@/stores/game-store";
 
 export function GameChrome() {
@@ -21,6 +24,11 @@ export function GameChrome() {
   const lastError = useGameStore((s) => s.lastError);
   const finishedMessage = useGameStore((s) => s.finishedMessage);
   const pending = useGameStore((s) => s.pending);
+  const [sfxMuted, setSfxMutedUi] = useState(false);
+
+  useEffect(() => {
+    setSfxMutedUi(isSfxMuted());
+  }, []);
 
   const turnLabel = !state
     ? "—"
@@ -85,6 +93,27 @@ export function GameChrome() {
       </div>
 
       <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-pressed={sfxMuted}
+          aria-label={sfxMuted ? "Unmute sound effects" : "Mute sound effects"}
+          title={sfxMuted ? "Unmute sounds" : "Mute sounds"}
+          onClick={() => {
+            unlockSfx();
+            const next = !isSfxMuted();
+            setSfxMuted(next);
+            setSfxMutedUi(next);
+          }}
+        >
+          {sfxMuted ? (
+            <VolumeX className="size-4" aria-hidden />
+          ) : (
+            <Volume2 className="size-4" aria-hidden />
+          )}
+          <span className="sm:inline">{sfxMuted ? "Muted" : "Sound"}</span>
+        </Button>
         {connection === "playing" ? (
           <>
             <Button
