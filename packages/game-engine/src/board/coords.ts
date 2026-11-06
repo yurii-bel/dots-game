@@ -1,4 +1,4 @@
-import type { Board } from "../types.js";
+import type { Board } from "../types";
 
 /** Formal 1-based point. */
 export type Point = Readonly<{ x: number; y: number }>;

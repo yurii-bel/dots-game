@@ -5,8 +5,8 @@ import {
   findSurroundableIndices,
   getCell,
   toIndex,
-} from "./index.js";
-import { buildClassicGame, playerIdFor } from "./test-utils/build-game.js";
+} from "./index";
+import { buildClassicGame, playerIdFor } from "./test-utils/build-game";
 
 describe("declareLanding (§8.2–8.4)", () => {
   it("rejects landing when the game is finished", () => {

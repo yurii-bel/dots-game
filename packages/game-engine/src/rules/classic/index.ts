@@ -1,4 +1,4 @@
-import type { PlayerColor, RulesetId } from "../../types.js";
+import type { PlayerColor, RulesetId } from "../../types";
 import {
   CLASSIC_BOARD_HEIGHT,
   CLASSIC_BOARD_WIDTH,
@@ -6,8 +6,8 @@ import {
   CLASSIC_INITIAL_CROSS,
   CLASSIC_RULESET_ID,
   CLASSIC_RULESET_VERSION,
-} from "./constants.js";
-import { createClassicInitialBoard } from "./initial-position.js";
+} from "./constants";
+import { createClassicInitialBoard } from "./initial-position";
 
 export {
   CLASSIC_BOARD_HEIGHT,
@@ -16,9 +16,9 @@ export {
   CLASSIC_INITIAL_CROSS,
   CLASSIC_RULESET_ID,
   CLASSIC_RULESET_VERSION,
-} from "./constants.js";
+} from "./constants";
 
-export { createClassicInitialBoard } from "./initial-position.js";
+export { createClassicInitialBoard } from "./initial-position";
 
 export type ClassicRuleset = {
   id: typeof CLASSIC_RULESET_ID;

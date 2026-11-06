@@ -1,7 +1,7 @@
-import type { Board, ClosedContour, EnclosedRegion, PlayerColor } from "../types.js";
-import { findConnectedComponents } from "./find-connected-components.js";
-import { isActiveWall, neighborIndices4, neighborIndices8 } from "./neighbors.js";
-import { classicOpponent } from "../rules/classic/index.js";
+import type { Board, ClosedContour, EnclosedRegion, PlayerColor } from "../types";
+import { findConnectedComponents } from "./find-connected-components";
+import { isActiveWall, neighborIndices4, neighborIndices8 } from "./neighbors";
+import { classicOpponent } from "../rules/classic/index";
 
 /**
  * Mark every non-wall cell reachable from the board edge via 4-connectivity.

@@ -1,4 +1,4 @@
-import type { Board, PlayerColor } from "../types.js";
+import type { Board, PlayerColor } from "../types";
 
 /**
  * Recalculate scores from board ownership (§6.1, §6.4).

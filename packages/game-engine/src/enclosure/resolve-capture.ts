@@ -1,5 +1,5 @@
-import type { Board, EnclosedRegion, PlayerColor } from "../types.js";
-import { cloneBoard } from "../board/create-board.js";
+import type { Board, EnclosedRegion, PlayerColor } from "../types";
+import { cloneBoard } from "../board/create-board";
 
 /**
  * Apply capture for one or more validated regions (§5.7).

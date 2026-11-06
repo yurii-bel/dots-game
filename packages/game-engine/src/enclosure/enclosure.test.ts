@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyBoard, placeDots } from "../board/create-board.js";
-import { toIndex } from "../board/coords.js";
+import { createEmptyBoard, placeDots } from "../board/create-board";
+import { toIndex } from "../board/coords";
 import {
   findConnectedComponents,
   findEnclosedRegions,
@@ -8,7 +8,7 @@ import {
   recalculateScore,
   resolveCapture,
   validateEnclosure,
-} from "./index.js";
+} from "./index";
 
 function boardWith(
   dots: { x: number; y: number; color: "blue" | "red" }[],

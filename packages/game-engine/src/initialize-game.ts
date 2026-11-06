@@ -1,8 +1,8 @@
 import {
   assertClassicBoardSize,
   classicRuleset,
-} from "./rules/classic/index.js";
-import type { GamePlayers, GameState, InitializeGameOptions } from "./types.js";
+} from "./rules/classic/index";
+import type { GamePlayers, GameState, InitializeGameOptions } from "./types";
 
 const DEFAULT_PLAYERS: GamePlayers = {
   blue: "player-1",

@@ -1,13 +1,13 @@
-import { resolveLandingCaptures } from "./enclosure/landing.js";
-import { recalculateScore } from "./enclosure/recalculate-score.js";
-import { winnerFromScores } from "./result.js";
+import { resolveLandingCaptures } from "./enclosure/landing";
+import { recalculateScore } from "./enclosure/recalculate-score";
+import { winnerFromScores } from "./result";
 import type {
   DeclareLandingResult,
   GameState,
   LandingError,
   LandingInput,
   PlayerColor,
-} from "./types.js";
+} from "./types";
 
 /**
  * Declare заземление / landing (§8.1г, §8.2–8.4).
