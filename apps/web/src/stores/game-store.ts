@@ -26,6 +26,14 @@ export type PendingMove = {
   expectedVersion: number;
 };
 
+/** Last accepted placement — client UI only (Task 5 rings). Cleared on new match. */
+export type LastMove = {
+  x: number;
+  y: number;
+  color: PlayerColor;
+  moveNumber: number;
+};
+
 type TimingInput = {
   startedAt?: number | null;
   finishedAt?: number | null;
@@ -40,6 +48,8 @@ type GameStore = {
   yourColor: PlayerColor | null;
   state: WireGameState | null;
   pending: PendingMove | null;
+  /** Highlight rings for the most recent accepted move (not on wire/sync). */
+  lastMove: LastMove | null;
   opponentConnected: boolean;
   lastError: string | null;
   finishedMessage: string | null;
@@ -101,6 +111,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   yourColor: null,
   state: null,
   pending: null,
+  lastMove: null,
   opponentConnected: true,
   lastError: null,
   finishedMessage: null,
@@ -131,6 +142,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       roomCode: roomCode ?? get().roomCode,
       connection: state.board.cells.length > 0 ? "playing" : "waiting",
       pending: null,
+      lastMove: null,
       lastError: null,
       finishedMessage: null,
       opponentConnected: true,
@@ -161,6 +173,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       state: payload.state,
       pending: pending?.requestId === payload.requestId ? null : get().pending,
+      lastMove: {
+        x: payload.move.x,
+        y: payload.move.y,
+        color: payload.move.color,
+        moveNumber: payload.move.moveNumber,
+      },
       connection: payload.state.status === "finished" ? "finished" : "playing",
       lastError: null,
     });
@@ -203,6 +221,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       yourColor: null,
       state: null,
       pending: null,
+      lastMove: null,
       opponentConnected: true,
       lastError: null,
       finishedMessage: null,

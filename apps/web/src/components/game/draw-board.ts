@@ -1,5 +1,6 @@
 import type { PlayerColor, WireBoard, WireCell } from "@dots/shared";
 import { computeLayout, formalToCanvas, type BoardLayout } from "./board-geometry";
+import { buildTerritoryPaths } from "./territory-paths";
 
 const COLORS = {
   grid: "#c8cdd5",
@@ -7,13 +8,23 @@ const COLORS = {
   paper: "#ffffff",
   blue: "#1d4ed8",
   red: "#dc2626",
-  blueTerritory: "rgba(37, 99, 235, 0.22)",
-  redTerritory: "rgba(220, 38, 38, 0.22)",
+  /** Task 5 — approved 30% fill opacity. */
+  blueTerritory: "rgba(37, 99, 235, 0.30)",
+  redTerritory: "rgba(220, 38, 38, 0.30)",
   pending: "rgba(15, 23, 42, 0.35)",
 } as const;
 
 /** Preview ghost opacity (Task 3). Distinct from pending (0.55). */
 export const HOVER_PREVIEW_ALPHA = 0.85;
+
+/** Mild shrink for disabled/captured stones (Task 5). */
+export const CAPTURED_DOT_SCALE = 0.85;
+
+export type LastMoveHighlight = {
+  x: number;
+  y: number;
+  color: PlayerColor;
+};
 
 function cellAt(board: WireBoard, x: number, y: number): WireCell | null {
   if (board.cells.length === 0) return null;
@@ -28,18 +39,23 @@ export function isCellPlayable(board: WireBoard, x: number, y: number): boolean 
   return cell.color === null && !cell.disabled;
 }
 
+export function territoryStrokeWidth(cell: number): number {
+  return Math.max(2.5, cell * 0.18);
+}
+
 export type DrawOptions = {
   board: WireBoard;
   layout: BoardLayout;
   hover: { x: number; y: number } | null;
   yourColor: PlayerColor | null;
   pending: { x: number; y: number; color: PlayerColor } | null;
+  lastMove: LastMoveHighlight | null;
   dpr: number;
 };
 
 export function drawBoard(
   ctx: CanvasRenderingContext2D,
-  { board, layout, hover, yourColor, pending, dpr }: DrawOptions,
+  { board, layout, hover, yourColor, pending, lastMove, dpr }: DrawOptions,
 ): void {
   const { cssWidth, cssHeight, cell } = layout;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -49,23 +65,7 @@ export function drawBoard(
   ctx.fillStyle = COLORS.paper;
   ctx.fillRect(0, 0, cssWidth, cssHeight);
 
-  // Territories under the grid
-  if (board.cells.length > 0) {
-    for (let y = 1; y <= board.height; y += 1) {
-      for (let x = 1; x <= board.width; x += 1) {
-        const cellData = cellAt(board, x, y);
-        if (!cellData?.capturedBy) continue;
-        const { cx, cy } = formalToCanvas(layout, board, x, y);
-        ctx.fillStyle =
-          cellData.capturedBy === "blue" ? COLORS.blueTerritory : COLORS.redTerritory;
-        // Diamond-ish fill covering the intersection neighborhood
-        const half = cell * 0.5;
-        ctx.fillRect(cx - half, cy - half, cell, cell);
-      }
-    }
-  }
-
-  // Grid lines
+  // Grid lines (territories draw above — Task 5)
   ctx.lineWidth = 1;
   for (let x = 1; x <= board.width; x += 1) {
     const { cx, cy: cyTop } = formalToCanvas(layout, board, x, board.height);
@@ -86,6 +86,42 @@ export function drawBoard(
     ctx.stroke();
   }
 
+  // Captured territories — polygon fill then stroke (size-sorted for nesting)
+  if (board.cells.length > 0) {
+    const territories = buildTerritoryPaths(board);
+    const strokeW = territoryStrokeWidth(cell);
+
+    for (const region of territories) {
+      if (region.points.length < 3) continue;
+      ctx.beginPath();
+      region.points.forEach((p, i) => {
+        const { cx, cy } = formalToCanvas(layout, board, p.x, p.y);
+        if (i === 0) ctx.moveTo(cx, cy);
+        else ctx.lineTo(cx, cy);
+      });
+      ctx.closePath();
+      ctx.fillStyle =
+        region.color === "blue" ? COLORS.blueTerritory : COLORS.redTerritory;
+      ctx.fill();
+    }
+
+    for (const region of territories) {
+      if (region.points.length < 3) continue;
+      ctx.beginPath();
+      region.points.forEach((p, i) => {
+        const { cx, cy } = formalToCanvas(layout, board, p.x, p.y);
+        if (i === 0) ctx.moveTo(cx, cy);
+        else ctx.lineTo(cx, cy);
+      });
+      ctx.closePath();
+      ctx.strokeStyle = region.color === "blue" ? COLORS.blue : COLORS.red;
+      ctx.lineWidth = strokeW;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.stroke();
+    }
+  }
+
   const dotRadius = Math.max(2.5, cell * 0.28);
 
   // Placed points
@@ -95,15 +131,31 @@ export function drawBoard(
         const cellData = cellAt(board, x, y);
         if (!cellData?.color) continue;
         const { cx, cy } = formalToCanvas(layout, board, x, y);
+        const radius = cellData.disabled
+          ? dotRadius * CAPTURED_DOT_SCALE
+          : dotRadius;
         ctx.beginPath();
         ctx.fillStyle = cellData.color === "blue" ? COLORS.blue : COLORS.red;
         if (cellData.disabled) {
           ctx.globalAlpha = 0.55;
         }
-        ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
       }
+    }
+  }
+
+  // Last-move double ring (Task 5)
+  if (lastMove) {
+    const { cx, cy } = formalToCanvas(layout, board, lastMove.x, lastMove.y);
+    const stroke = lastMove.color === "blue" ? COLORS.blue : COLORS.red;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = Math.max(1.5, cell * 0.08);
+    for (const pad of [3, 6]) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, dotRadius + pad, 0, Math.PI * 2);
+      ctx.stroke();
     }
   }
 

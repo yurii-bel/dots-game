@@ -3,13 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PlayerColor, WireBoard } from "@dots/shared";
 import { canvasToFormal } from "./board-geometry";
-import { drawBoard, isCellPlayable, layoutForContainer } from "./draw-board";
+import {
+  drawBoard,
+  isCellPlayable,
+  layoutForContainer,
+  type LastMoveHighlight,
+} from "./draw-board";
 
 type GameBoardProps = {
   board: WireBoard;
   interactive: boolean;
   yourColor: PlayerColor | null;
   pending: { x: number; y: number; color: PlayerColor } | null;
+  lastMove: LastMoveHighlight | null;
   onPlace: (x: number, y: number) => void;
 };
 
@@ -30,6 +36,7 @@ export function GameBoard({
   interactive,
   yourColor,
   pending,
+  lastMove,
   onPlace,
 }: GameBoardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -73,9 +80,10 @@ export function GameBoard({
       hover: interactive ? hover : null,
       yourColor,
       pending,
+      lastMove,
       dpr,
     });
-  }, [board, layout, hover, pending, interactive, yourColor]);
+  }, [board, layout, hover, pending, lastMove, interactive, yourColor]);
 
   const resolvePoint = useCallback(
     (clientX: number, clientY: number) => {
