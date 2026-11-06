@@ -1,7 +1,7 @@
-import type { Board, Cell } from "../types.js";
-import { toIndex } from "./coords.js";
-import type { Point } from "./coords.js";
-import type { PlayerColor } from "../types.js";
+import type { Board, Cell } from "../types";
+import { toIndex } from "./coords";
+import type { Point } from "./coords";
+import type { PlayerColor } from "../types";
 
 export type ColoredPoint = Point & { color: PlayerColor };
 

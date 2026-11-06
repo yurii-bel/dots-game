@@ -1,12 +1,12 @@
-import { createEmptyBoard, placeDots } from "../board/create-board.js";
-import type { ColoredPoint } from "../board/create-board.js";
+import { createEmptyBoard, placeDots } from "../board/create-board";
+import type { ColoredPoint } from "../board/create-board";
 import {
   CLASSIC_BOARD_HEIGHT,
   CLASSIC_BOARD_WIDTH,
   CLASSIC_RULESET_ID,
   CLASSIC_RULESET_VERSION,
-} from "../rules/classic/constants.js";
-import type { GameState, PlayerColor } from "../types.js";
+} from "../rules/classic/constants";
+import type { GameState, PlayerColor } from "../types";
 
 /**
  * Build a classic-sized game from an explicit stone list (for capture fixtures).

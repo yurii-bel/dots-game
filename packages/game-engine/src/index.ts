@@ -27,10 +27,10 @@ export function getEngineStatus(): EngineCapabilities {
   };
 }
 
-export { initializeGame } from "./initialize-game.js";
-export { applyMove } from "./apply-move.js";
-export { declareLanding } from "./declare-landing.js";
-export { winnerFromScores } from "./result.js";
+export { initializeGame } from "./initialize-game";
+export { applyMove } from "./apply-move";
+export { declareLanding } from "./declare-landing";
+export { winnerFromScores } from "./result";
 
 export type {
   ApplyMoveFailure,
@@ -58,7 +58,7 @@ export type {
   MoveInput,
   PlayerColor,
   RulesetId,
-} from "./types.js";
+} from "./types";
 
 export {
   createEmptyBoard,
@@ -69,8 +69,8 @@ export {
   fromIndex,
   isInBounds,
   formatPoint,
-} from "./board/index.js";
-export type { Point, ColoredPoint } from "./board/index.js";
+} from "./board/index";
+export type { Point, ColoredPoint } from "./board/index";
 
 export {
   findConnectedComponents,
@@ -86,7 +86,7 @@ export {
   resolveLandingCaptures,
   findGroundedIndices,
   findSurroundableIndices,
-} from "./enclosure/index.js";
+} from "./enclosure/index";
 
 export {
   classicRuleset,
@@ -98,4 +98,4 @@ export {
   CLASSIC_INITIAL_CROSS,
   CLASSIC_RULESET_ID,
   CLASSIC_RULESET_VERSION,
-} from "./rules/classic/index.js";
+} from "./rules/classic/index";

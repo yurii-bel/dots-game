@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromIndex, isInBounds, toIndex } from "./coords.js";
+import { fromIndex, isInBounds, toIndex } from "./coords";
 
 const board = { width: 39, height: 32 };
 

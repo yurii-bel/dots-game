@@ -1,10 +1,10 @@
-import { createEmptyBoard, placeDots } from "../../board/create-board.js";
-import type { Board } from "../../types.js";
+import { createEmptyBoard, placeDots } from "../../board/create-board";
+import type { Board } from "../../types";
 import {
   CLASSIC_BOARD_HEIGHT,
   CLASSIC_BOARD_WIDTH,
   CLASSIC_INITIAL_CROSS,
-} from "./constants.js";
+} from "./constants";
 
 /** Build the classic starting board with the official initial cross. */
 export function createClassicInitialBoard(): Board {

@@ -1,4 +1,4 @@
-import type { PlayerColor } from "./types.js";
+import type { PlayerColor } from "./types";
 
 /**
  * §8.6 — winner by final score when the outcome is score-determined

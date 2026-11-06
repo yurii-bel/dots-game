@@ -1,10 +1,10 @@
-import { cloneBoard } from "../board/create-board.js";
-import { classicOpponent } from "../rules/classic/index.js";
-import type { Board, EnclosedRegion, PlayerColor } from "../types.js";
-import { findExteriorMask } from "./find-enclosed-regions.js";
-import { findValidCaptures } from "./validate-enclosure.js";
-import { resolveCapture } from "./resolve-capture.js";
-import { isActiveWall } from "./neighbors.js";
+import { cloneBoard } from "../board/create-board";
+import { classicOpponent } from "../rules/classic/index";
+import type { Board, EnclosedRegion, PlayerColor } from "../types";
+import { findExteriorMask } from "./find-enclosed-regions";
+import { findValidCaptures } from "./validate-enclosure";
+import { resolveCapture } from "./resolve-capture";
+import { isActiveWall } from "./neighbors";
 
 /**
  * §8.2 / §8.4 — surroundability under perfect opponent fill.

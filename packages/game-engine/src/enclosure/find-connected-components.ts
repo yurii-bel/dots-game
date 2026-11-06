@@ -1,5 +1,5 @@
-import type { Board, ConnectedComponent } from "../types.js";
-import { neighborIndices4, neighborIndices8 } from "./neighbors.js";
+import type { Board, ConnectedComponent } from "../types";
+import { neighborIndices4, neighborIndices8 } from "./neighbors";
 
 export type Connectivity = 4 | 8;
 

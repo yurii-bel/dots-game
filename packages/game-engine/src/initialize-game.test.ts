@@ -8,7 +8,7 @@ import {
   getCell,
   initializeGame,
   toIndex,
-} from "./index.js";
+} from "./index";
 
 describe("initializeGame (classic)", () => {
   const game = initializeGame({

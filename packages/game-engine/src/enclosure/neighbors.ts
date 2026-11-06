@@ -1,5 +1,5 @@
-import type { Board, PlayerColor } from "../types.js";
-import { fromIndex, isInBounds, toIndex } from "../board/coords.js";
+import type { Board, PlayerColor } from "../types";
+import { fromIndex, isInBounds, toIndex } from "../board/coords";
 
 /** Orthogonal (4-connected) deltas — used for region flood-fill dual to 8-chains. */
 export const ORTHOGONAL_DELTAS = [

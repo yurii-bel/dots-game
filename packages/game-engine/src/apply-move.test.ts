@@ -5,8 +5,8 @@ import {
   initializeGame,
   CLASSIC_BOARD_HEIGHT,
   CLASSIC_BOARD_WIDTH,
-} from "./index.js";
-import { buildClassicGame, playerIdFor } from "./test-utils/build-game.js";
+} from "./index";
+import { buildClassicGame, playerIdFor } from "./test-utils/build-game";
 
 function fresh() {
   return initializeGame({

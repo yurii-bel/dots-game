@@ -5,7 +5,7 @@ import {
   initializeGame,
   applyMove,
   declareLanding,
-} from "./index.js";
+} from "./index";
 
 describe("game-engine public surface", () => {
   it("reports rules-patch capabilities", () => {

@@ -1,4 +1,4 @@
-export { createEmptyBoard, placeDots, getCell, cloneBoard } from "./create-board.js";
-export type { ColoredPoint } from "./create-board.js";
-export { toIndex, fromIndex, isInBounds, formatPoint } from "./coords.js";
-export type { Point } from "./coords.js";
+export { createEmptyBoard, placeDots, getCell, cloneBoard } from "./create-board";
+export type { ColoredPoint } from "./create-board";
+export { toIndex, fromIndex, isInBounds, formatPoint } from "./coords";
+export type { Point } from "./coords";

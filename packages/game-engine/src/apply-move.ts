@@ -1,12 +1,12 @@
-import { cloneBoard } from "./board/create-board.js";
-import { isInBounds, toIndex } from "./board/coords.js";
+import { cloneBoard } from "./board/create-board";
+import { isInBounds, toIndex } from "./board/coords";
 import {
   findValidCaptures,
   recalculateScore,
   resolveCapture,
-} from "./enclosure/index.js";
-import { winnerFromScores } from "./result.js";
-import { classicOpponent } from "./rules/classic/index.js";
+} from "./enclosure/index";
+import { winnerFromScores } from "./result";
+import { classicOpponent } from "./rules/classic/index";
 import type {
   ApplyMoveResult,
   Board,
@@ -14,7 +14,7 @@ import type {
   MoveError,
   MoveInput,
   PlayerColor,
-} from "./types.js";
+} from "./types";
 
 /**
  * Apply a move under the classic СКСТ ruleset.

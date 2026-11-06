@@ -1,6 +1,6 @@
-import type { Board, EnclosedRegion, PlayerColor } from "../types.js";
-import { classicOpponent } from "../rules/classic/index.js";
-import { findEnclosedRegions } from "./find-enclosed-regions.js";
+import type { Board, EnclosedRegion, PlayerColor } from "../types";
+import { classicOpponent } from "../rules/classic/index";
+import { findEnclosedRegions } from "./find-enclosed-regions";
 
 /**
  * Validate that a candidate region is a legal capture under §5.5–5.6.
