@@ -20,6 +20,7 @@ export function GameView() {
   const state = useGameStore((s) => s.state);
   const yourColor = useGameStore((s) => s.yourColor);
   const pending = useGameStore((s) => s.pending);
+  const lastMove = useGameStore((s) => s.lastMove);
   const connection = useGameStore((s) => s.connection);
 
   // Unlock audio on first gesture so opponent moves can play under autoplay rules.
@@ -50,6 +51,7 @@ export function GameView() {
           interactive={myTurn}
           yourColor={yourColor}
           pending={pending}
+          lastMove={lastMove}
           onPlace={(x, y) => submitMove(x, y)}
         />
       </div>

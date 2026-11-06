@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { WireBoard, WireCell } from "@dots/shared";
-import { HOVER_PREVIEW_ALPHA, isCellPlayable } from "./draw-board";
+import {
+  CAPTURED_DOT_SCALE,
+  HOVER_PREVIEW_ALPHA,
+  isCellPlayable,
+  territoryStrokeWidth,
+} from "./draw-board";
 
 function cell(
   partial: Partial<WireCell> = {},
@@ -46,5 +51,16 @@ describe("isCellPlayable", () => {
 describe("HOVER_PREVIEW_ALPHA", () => {
   it("is 85%", () => {
     expect(HOVER_PREVIEW_ALPHA).toBe(0.85);
+  });
+});
+
+describe("Task 5 visual constants", () => {
+  it("uses a mild captured-dot shrink", () => {
+    expect(CAPTURED_DOT_SCALE).toBe(0.85);
+  });
+
+  it("scales territory stroke with cell size", () => {
+    expect(territoryStrokeWidth(10)).toBe(Math.max(2.5, 10 * 0.18));
+    expect(territoryStrokeWidth(8)).toBe(2.5);
   });
 });
