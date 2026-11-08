@@ -18,6 +18,11 @@ export {
   findGroundedIndices,
   findSurroundableIndices,
 } from "./landing";
+export { buildCapturedTerritoryContours } from "./captured-territory-contours";
+export type {
+  CapturedTerritoryContour,
+  FormalPoint,
+} from "./captured-territory-contours";
 export {
   ORTHOGONAL_DELTAS,
   KING_DELTAS,
