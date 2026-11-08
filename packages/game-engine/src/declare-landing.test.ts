@@ -146,4 +146,60 @@ describe("declareLanding (§8.2–8.4)", () => {
     expect(getCell(result.game.board, 3, 3).capturedBy).toBe("red");
     expect(getCell(result.game.board, 1, 1).disabled).toBe(false);
   });
+
+  it("is irrevocable — second declare after grounding fails", () => {
+    const game = buildClassicGame({
+      dots: [
+        { x: 5, y: 1, color: "blue" },
+        { x: 6, y: 1, color: "blue" },
+      ],
+    });
+    const first = declareLanding(game, { playerId: playerIdFor(game, "blue") });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    const second = declareLanding(first.game, {
+      playerId: playerIdFor(game, "red"),
+    });
+    expect(second.ok).toBe(false);
+    if (!second.ok) expect(second.error.code).toBe("GAME_NOT_IN_PROGRESS");
+  });
+
+  it("allows intentional floating gift when the lead still wins (§8.4 / training §1.8)", () => {
+    // Blue already leads 3–0 via prior captures; leaves one mid-board stone ungrounded.
+    const game = buildClassicGame({
+      currentPlayer: "red",
+      dots: [
+        { x: 3, y: 1, color: "blue" },
+        { x: 4, y: 1, color: "blue" },
+        { x: 5, y: 1, color: "blue" },
+        { x: 20, y: 16, color: "blue" },
+      ],
+    });
+    // Seed three prior blue captures so score is authoritative via recalculateScore.
+    for (const [x, y] of [
+      [10, 10],
+      [11, 10],
+      [12, 10],
+    ] as const) {
+      const idx = toIndex(game.board, x, y);
+      game.board.cells[idx] = {
+        color: "red",
+        disabled: true,
+        capturedBy: "blue",
+      };
+    }
+    game.scores = { blue: 3, red: 0 };
+
+    const result = declareLanding(game, { playerId: playerIdFor(game, "blue") });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(getCell(result.game.board, 20, 16).capturedBy).toBe("red");
+    expect(getCell(result.game.board, 3, 1).disabled).toBe(false);
+    expect(result.game.scores.blue).toBe(3);
+    expect(result.game.scores.red).toBe(1);
+    expect(result.game.winner).toBe("blue");
+    expect(result.game.finishedReason).toBe("landing");
+  });
 });

@@ -19,6 +19,14 @@ export {
   findSurroundableIndices,
 } from "./landing";
 export {
+  buildCapturedTerritoryContours,
+  buildHalfCellRingsForIndices,
+} from "./captured-territory-contours";
+export type {
+  CapturedTerritoryContour,
+  FormalPoint,
+} from "./captured-territory-contours";
+export {
   ORTHOGONAL_DELTAS,
   KING_DELTAS,
   neighborIndices4,

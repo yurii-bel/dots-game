@@ -120,9 +120,16 @@ export function GameChrome() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => declareLandingGame()}
+              title="One-time action. Continuous chains connected to the outer boundary become permanently safe. Remaining floating material that the opponent could theoretically surround is forfeited to them; then the game ends and the final score is computed."
+              onClick={() => {
+                const ok = window.confirm(
+                  "Declare grounding?\n\nThis ends the match and cannot be undone. Continuous chains connected to the border stay safe; floating material the opponent could surround is awarded to them.",
+                );
+                if (!ok) return;
+                declareLandingGame();
+              }}
             >
-              Declare landing
+              Declare grounding
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => resignGame()}>
               Resign

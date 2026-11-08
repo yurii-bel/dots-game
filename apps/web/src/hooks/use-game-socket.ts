@@ -31,8 +31,8 @@ function finishedLabel(payload: GameFinishedPayload): string {
       : "Game ended by resign.";
   }
   if (payload.reason === "landing") {
-    if (!payload.winner) return "Landing declared — draw.";
-    return `${payload.winner === "blue" ? "Blue" : "Red"} wins after landing.`;
+    if (!payload.winner) return "Grounding declared — draw.";
+    return `${payload.winner === "blue" ? "Blue" : "Red"} wins after grounding.`;
   }
   if (payload.reason === "board_full") {
     if (!payload.winner) return "Board full — draw.";
