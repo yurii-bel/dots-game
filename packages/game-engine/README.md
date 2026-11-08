@@ -70,6 +70,8 @@ findConnectedComponents → findEnclosedRegions / findClosedContours
 
 Landing: `findLandingCaptures` → `resolveLandingCaptures` → `recalculateScore` → §8.6 winner.
 
+Geometry-only (no rules): `buildCapturedTerritoryContours` / `buildHalfCellRingsForIndices` — half-cell perimeters from `capturedBy` for web R1 hybrid fallback when live capturer walls are missing after §8.4.
+
 ## Layout
 
 ```

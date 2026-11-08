@@ -86,6 +86,12 @@ export {
   resolveLandingCaptures,
   findGroundedIndices,
   findSurroundableIndices,
+  buildCapturedTerritoryContours,
+  buildHalfCellRingsForIndices,
+} from "./enclosure/index";
+export type {
+  CapturedTerritoryContour,
+  FormalPoint,
 } from "./enclosure/index";
 
 export {

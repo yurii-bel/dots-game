@@ -1,20 +1,28 @@
 import {
+  buildHalfCellRingsForIndices,
   findClosedContours,
   findConnectedComponents,
   fromIndex,
   isInBounds,
   toIndex,
   type Board,
+  type FormalPoint,
   type PlayerColor,
 } from "@dots/game-engine";
 import type { WireBoard } from "@dots/shared";
 
 export type TerritoryPath = {
   color: PlayerColor;
-  /** Formal 1-based points in CCW (or consistent) cycle order for Canvas path. */
-  points: { x: number; y: number }[];
+  /**
+   * Closed rings in formal coords.
+   * - `wall`: capturer-chain centers (Task 5)
+   * - `cell-set`: half-cell perimeters (R1 fallback for wall-less §8.4)
+   * Further rings (cell-set only) are holes for even-odd fill.
+   */
+  rings: FormalPoint[][];
   /** Interior cell count — used to size-sort nested regions (draw small on top). */
   interiorCount: number;
+  source: "wall" | "cell-set";
 };
 
 const KING_DELTAS = [
@@ -180,7 +188,10 @@ export function orderContourCycle(
 }
 
 /**
- * Build closed territory polygons from `capturedBy` cell flags.
+ * Build territory polygons from `capturedBy` cell flags (R1 hybrid):
+ * prefer Task 5 wall-center contours when a live capturer chain exists;
+ * otherwise half-cell cell-set rings so §8.4 forfeits stay visible.
+ *
  * Sorted ascending by interior size (P1 nesting — draw small on top).
  */
 export function buildTerritoryPaths(board: WireBoard): TerritoryPath[] {
@@ -199,17 +210,30 @@ export function buildTerritoryPaths(board: WireBoard): TerritoryPath[] {
     const components = findConnectedComponents(engineBoard, interiors, 4);
     for (const component of components) {
       const closed = findClosedContours(engineBoard, color, component.indices);
-      if (closed.indices.length < 3) continue;
-      const ordered = orderContourCycle(
-        engineBoard,
-        closed.indices,
-        component.indices,
-      );
-      if (ordered.length < 3) continue;
+      if (closed.indices.length >= 3) {
+        const ordered = orderContourCycle(
+          engineBoard,
+          closed.indices,
+          component.indices,
+        );
+        if (ordered.length >= 3) {
+          paths.push({
+            color,
+            interiorCount: component.indices.length,
+            source: "wall",
+            rings: [ordered.map((index) => fromIndex(engineBoard, index))],
+          });
+          continue;
+        }
+      }
+
+      const rings = buildHalfCellRingsForIndices(engineBoard, component.indices);
+      if (rings.length === 0) continue;
       paths.push({
         color,
         interiorCount: component.indices.length,
-        points: ordered.map((index) => fromIndex(engineBoard, index)),
+        source: "cell-set",
+        rings,
       });
     }
   }

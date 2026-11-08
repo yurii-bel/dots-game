@@ -43,23 +43,49 @@ function smallRedCapture(): WireBoard {
   return { width, height, cells };
 }
 
-describe("buildTerritoryPaths", () => {
+/** Lone §8.4-style capture — no capturer walls on the board. */
+function loneLandingCapture(): WireBoard {
+  const width = 5;
+  const height = 5;
+  const cells: WireCell[] = Array.from({ length: width * height }, emptyCell);
+  cells[(3 - 1) * width + (3 - 1)] = captured("blue", "red");
+  return { width, height, cells };
+}
+
+describe("buildTerritoryPaths (R1 hybrid)", () => {
   it("returns empty when board has no cells", () => {
     expect(
       buildTerritoryPaths({ width: 39, height: 32, cells: [] }),
     ).toEqual([]);
   });
 
-  it("builds a closed red polygon around a captured interior", () => {
+  it("prefers Task 5 wall contours when a live capturer chain exists", () => {
     const paths = buildTerritoryPaths(smallRedCapture());
     expect(paths).toHaveLength(1);
     expect(paths[0]!.color).toBe("red");
     expect(paths[0]!.interiorCount).toBe(1);
-    expect(paths[0]!.points.length).toBeGreaterThanOrEqual(4);
-    // Closed cycle — first≠last in list; Canvas closePath joins them.
-    const pts = paths[0]!.points;
-    const keys = new Set(pts.map((p) => `${p.x},${p.y}`));
-    expect(keys.size).toBe(pts.length);
+    expect(paths[0]!.source).toBe("wall");
+    expect(paths[0]!.rings).toHaveLength(1);
+    expect(paths[0]!.rings[0]!.length).toBeGreaterThanOrEqual(4);
+    // Wall vertices are integer formal intersections (chain centers).
+    for (const p of paths[0]!.rings[0]!) {
+      expect(Number.isInteger(p.x)).toBe(true);
+      expect(Number.isInteger(p.y)).toBe(true);
+    }
+  });
+
+  it("falls back to half-cell cell-set rings for wall-less §8.4 captures", () => {
+    const paths = buildTerritoryPaths(loneLandingCapture());
+    expect(paths).toHaveLength(1);
+    expect(paths[0]!.color).toBe("red");
+    expect(paths[0]!.interiorCount).toBe(1);
+    expect(paths[0]!.source).toBe("cell-set");
+    expect(paths[0]!.rings).toHaveLength(1);
+    expect(paths[0]!.rings[0]!).toHaveLength(4);
+    const keys = new Set(paths[0]!.rings[0]!.map((p) => `${p.x},${p.y}`));
+    expect(keys).toEqual(
+      new Set(["2.5,2.5", "3.5,2.5", "3.5,3.5", "2.5,3.5"]),
+    );
   });
 
   it("size-sorts nested / multiple regions ascending (P1)", () => {
@@ -70,7 +96,7 @@ describe("buildTerritoryPaths", () => {
       cells[(y - 1) * width + (x - 1)] = cell;
     };
 
-    // Left small red capture: one interior
+    // Left small red capture: one interior (wall path)
     for (const [x, y] of [
       [1, 2],
       [2, 2],
@@ -85,7 +111,7 @@ describe("buildTerritoryPaths", () => {
     }
     set(2, 3, captured("blue", "red"));
 
-    // Right larger blue capture: two interiors
+    // Right larger blue capture: two interiors (wall path)
     for (const [x, y] of [
       [5, 2],
       [6, 2],
@@ -111,6 +137,7 @@ describe("buildTerritoryPaths", () => {
       );
     }
     expect(paths[0]!.interiorCount).toBe(1);
+    expect(paths.every((p) => p.source === "wall")).toBe(true);
   });
 });
 
