@@ -86,11 +86,6 @@ export {
   resolveLandingCaptures,
   findGroundedIndices,
   findSurroundableIndices,
-  buildCapturedTerritoryContours,
-} from "./enclosure/index";
-export type {
-  CapturedTerritoryContour,
-  FormalPoint,
 } from "./enclosure/index";
 
 export {

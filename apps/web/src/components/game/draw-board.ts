@@ -86,44 +86,39 @@ export function drawBoard(
     ctx.stroke();
   }
 
-  // Captured territories — half-cell perimeters from engine geometry (even-odd holes)
+  // Captured territories — polygon fill then stroke (size-sorted for nesting)
   if (board.cells.length > 0) {
     const territories = buildTerritoryPaths(board);
     const strokeW = territoryStrokeWidth(cell);
 
     for (const region of territories) {
-      if (region.rings.length === 0) continue;
+      if (region.points.length < 3) continue;
       ctx.beginPath();
-      for (const ring of region.rings) {
-        if (ring.length < 3) continue;
-        ring.forEach((p, i) => {
-          const { cx, cy } = formalToCanvas(layout, board, p.x, p.y);
-          if (i === 0) ctx.moveTo(cx, cy);
-          else ctx.lineTo(cx, cy);
-        });
-        ctx.closePath();
-      }
+      region.points.forEach((p, i) => {
+        const { cx, cy } = formalToCanvas(layout, board, p.x, p.y);
+        if (i === 0) ctx.moveTo(cx, cy);
+        else ctx.lineTo(cx, cy);
+      });
+      ctx.closePath();
       ctx.fillStyle =
         region.color === "blue" ? COLORS.blueTerritory : COLORS.redTerritory;
-      ctx.fill("evenodd");
+      ctx.fill();
     }
 
     for (const region of territories) {
-      for (const ring of region.rings) {
-        if (ring.length < 3) continue;
-        ctx.beginPath();
-        ring.forEach((p, i) => {
-          const { cx, cy } = formalToCanvas(layout, board, p.x, p.y);
-          if (i === 0) ctx.moveTo(cx, cy);
-          else ctx.lineTo(cx, cy);
-        });
-        ctx.closePath();
-        ctx.strokeStyle = region.color === "blue" ? COLORS.blue : COLORS.red;
-        ctx.lineWidth = strokeW;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        ctx.stroke();
-      }
+      if (region.points.length < 3) continue;
+      ctx.beginPath();
+      region.points.forEach((p, i) => {
+        const { cx, cy } = formalToCanvas(layout, board, p.x, p.y);
+        if (i === 0) ctx.moveTo(cx, cy);
+        else ctx.lineTo(cx, cy);
+      });
+      ctx.closePath();
+      ctx.strokeStyle = region.color === "blue" ? COLORS.blue : COLORS.red;
+      ctx.lineWidth = strokeW;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.stroke();
     }
   }
 
