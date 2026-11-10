@@ -5,6 +5,10 @@ export function toWireState(
   gameId: string,
   game: GameState,
   winner: PlayerColor | null = null,
+  nicknames: { blue: string | null; red: string | null } = {
+    blue: null,
+    red: null,
+  },
 ): WireGameState {
   return {
     gameId,
@@ -21,6 +25,7 @@ export function toWireState(
     },
     currentPlayer: game.currentPlayer,
     players: { ...game.players },
+    nicknames,
     scores: { ...game.scores },
     version: game.moveNumber,
     status: game.status,

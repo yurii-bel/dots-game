@@ -12,7 +12,7 @@ pnpm monorepo for an online browser-based Спортивные точки game.
 | `apps/server` | `@dots/server` | Authoritative Node.js Socket.IO game server |
 | `packages/shared` | `@dots/shared` | Shared Zod schemas (socket contract + health) |
 | `packages/game-engine` | `@dots/game-engine` | Pure TS engine — `initializeGame` / `applyMove` / `declareLanding` |
-| `packages/database` | `@dots/database` | Prisma — `Game` / `GamePlayer` / `Move` (+ HealthCheck) |
+| `packages/database` | `@dots/database` | Prisma — `User` (Clerk) / `Game` / `GamePlayer` / `Move` (+ HealthCheck) |
 | `packages/tsconfig` | `@dots/tsconfig` | Shared strict TypeScript base configs |
 
 ## Prerequisites
@@ -29,13 +29,14 @@ Playable path needs **no Docker and no live Postgres**. Games stay in-memory on 
 # 1. Install (postinstall runs `pnpm db:generate` — no DB required)
 pnpm install
 
-# 2. Env (optional for play; copy if you want web/socket URLs explicit)
+# 2. Env — copy and fill Clerk keys (see docs/clerk-setup.md)
 cp .env.example .env
-# You can leave DATABASE_URL unset or pointed at a down Postgres — server still boots.
+# DATABASE_URL optional for in-memory play; required for User/nickname persistence.
+# CLERK_* required for web auth + Socket.IO JWT verify.
 
 # 3. Run both apps
 pnpm dev
-# web    → http://localhost:3000
+# web    → http://localhost:3000 (public landing; lobby at /lobby)
 # server → http://localhost:4000/health
 ```
 
@@ -82,12 +83,12 @@ pnpm dev
 
 Root `pnpm.overrides` pins `magic-string` to `0.30.21` (dual CJS/ESM). Tailwind v4.3.4 otherwise pulls ESM-only `magic-string@1.x`, which breaks Next’s CJS PostCSS/`next/font` loader on some Node/Windows setups. The Socket.IO server on `:4000` can still start while Next fails — that is expected for this bug.
 
-Open two browser profiles (or a normal + private window) on `http://localhost:3000`:
+With Clerk keys set: sign in on two browser profiles → choose nicknames → open `/lobby`:
 
 1. **Find match** on both, or
 2. **Create private room** on one → share the room code → **Join** on the other.
 
-Play on the Canvas board (mouse or touch). Scores / turn / resign live in the game chrome.
+Play on the Canvas board (mouse or touch). Scoreboard shows color dot · nickname · score.
 
 ### Useful scripts
 
@@ -108,11 +109,13 @@ Browser B ──┼── Socket.IO ── @dots/server ── in-memory rooms
             └── Zustand holds sync / pending UI only (not rules)
 ```
 
+**Auth:** Clerk (email+password + Google). Landing `/` is public; `/lobby`, `/game/*`, onboarding require auth + nickname. Socket.IO handshake sends a Clerk JWT only; the server maps Prisma `userId` ↔ seat `playerId`.
+
 **Socket contract** (see `@dots/shared` `SocketEvents`):
 
-- Client → server: `matchmaking:join/cancel`, `game:create/join/move/resign/sync`
+- Client → server: `matchmaking:join/cancel`, `game:create/join/move/resign/sync` (no client identity claims)
 - Server → client: `matchmaking:found`, `game:started`, `game:move:accepted|rejected`, `game:state`, opponent presence, `game:finished`
-- Moves carry `expectedVersion` + `requestId` (idempotent replay)
+- Moves carry `expectedVersion` + `requestId` (idempotent replay); seat identity comes from the verified socket session
 
 **Canvas board** (`components/game/`): single HTML Canvas — white grid, blue/red dots, translucent captured territories; responsive ResizeObserver; mouse + touch place.
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { UserButton } from "@clerk/nextjs";
 import { Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GameTimer } from "@/components/game/GameTimer";
@@ -14,6 +15,19 @@ import {
 import { isSfxMuted, setSfxMuted, unlockSfx } from "@/lib/sounds/player";
 import { useGameStore } from "@/stores/game-store";
 
+function ScoreDot({ color }: { color: "blue" | "red" }) {
+  return (
+    <span
+      aria-hidden
+      className={
+        color === "blue"
+          ? "inline-block size-2.5 rounded-full bg-blue-700"
+          : "inline-block size-2.5 rounded-full bg-red-600"
+      }
+    />
+  );
+}
+
 export function GameChrome() {
   const router = useRouter();
   const connection = useGameStore((s) => s.connection);
@@ -24,6 +38,7 @@ export function GameChrome() {
   const lastError = useGameStore((s) => s.lastError);
   const finishedMessage = useGameStore((s) => s.finishedMessage);
   const pending = useGameStore((s) => s.pending);
+  const nickname = useGameStore((s) => s.nickname);
   const [sfxMuted, setSfxMutedUi] = useState(false);
 
   useEffect(() => {
@@ -44,17 +59,26 @@ export function GameChrome() {
     connection === "finished" ||
     connection === "error";
 
+  const blueName = state?.nicknames.blue ?? "Blue";
+  const redName = state?.nicknames.red ?? "Red";
+
   return (
     <header className="flex flex-col gap-3 border-b border-border/80 pb-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="space-y-1">
-        <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">DOTS · 1v1</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">DOTS · 1v1</p>
+          {nickname ? (
+            <span className="text-xs text-muted-foreground">{nickname}</span>
+          ) : null}
+          <UserButton afterSignOutUrl="/" />
+        </div>
         <div className="flex flex-wrap items-baseline gap-3">
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             {yourColor ? (
               <>
                 You are{" "}
                 <span className={yourColor === "blue" ? "text-blue-700" : "text-red-600"}>
-                  {yourColor}
+                  {yourColor === "blue" ? blueName : redName}
                 </span>
               </>
             ) : (
@@ -64,13 +88,16 @@ export function GameChrome() {
           <span className="text-sm text-muted-foreground">{turnLabel}</span>
           <GameTimer />
         </div>
-        <div className="flex flex-wrap gap-4 text-sm">
-          <span>
-            <span className="font-medium text-blue-700">Blue</span>{" "}
-            {state?.scores.blue ?? 0}
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          <span className="inline-flex items-center gap-1.5">
+            <ScoreDot color="blue" />
+            <span className="font-medium">{blueName}</span>
+            <span>{state?.scores.blue ?? 0}</span>
           </span>
-          <span>
-            <span className="font-medium text-red-600">Red</span> {state?.scores.red ?? 0}
+          <span className="inline-flex items-center gap-1.5">
+            <ScoreDot color="red" />
+            <span className="font-medium">{redName}</span>
+            <span>{state?.scores.red ?? 0}</span>
           </span>
           <span className="text-muted-foreground">v{state?.version ?? 0}</span>
           {roomCode ? (
@@ -137,7 +164,7 @@ export function GameChrome() {
           size="sm"
           onClick={() => {
             parkGameSession();
-            router.push("/");
+            router.push("/lobby");
           }}
         >
           Lobby
@@ -149,7 +176,7 @@ export function GameChrome() {
             size="sm"
             onClick={() => {
               leaveGame();
-              router.push("/");
+              router.push("/lobby");
             }}
           >
             Leave

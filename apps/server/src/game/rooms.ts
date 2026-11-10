@@ -23,8 +23,11 @@ import {
 import { toWireState } from "./wire.js";
 
 export type Seat = {
+  /** Engine / seat key (server-issued UUID). */
   playerId: string;
-  displayName: string;
+  /** Prisma User id. */
+  userId: string;
+  nickname: string;
   socketId: string | null;
   connected: boolean;
 };
@@ -69,10 +72,27 @@ function newGameId(): string {
   return randomUUID();
 }
 
+function newPlayerId(): string {
+  return randomUUID();
+}
+
+function seatNicknames(game: ActiveGame): {
+  blue: string | null;
+  red: string | null;
+} {
+  return {
+    blue: game.seats.blue?.nickname ?? null,
+    red: game.seats.red?.nickname ?? null,
+  };
+}
+
 export class GameRoomRegistry {
   private readonly games = new Map<string, ActiveGame>();
   private readonly byRoomCode = new Map<string, string>();
+  /** Seat playerId → gameId */
   private readonly playerToGame = new Map<string, string>();
+  /** Prisma userId → gameId (active in-memory room). */
+  private readonly userToGame = new Map<string, string>();
 
   get(gameId: string): ActiveGame | undefined {
     return this.games.get(gameId);
@@ -88,29 +108,47 @@ export class GameRoomRegistry {
     return id ? this.games.get(id) : undefined;
   }
 
+  findByUser(userId: string): ActiveGame | undefined {
+    const id = this.userToGame.get(userId);
+    return id ? this.games.get(id) : undefined;
+  }
+
   colorOf(game: ActiveGame, playerId: string): PlayerColor | null {
     if (game.seats.blue?.playerId === playerId) return "blue";
     if (game.seats.red?.playerId === playerId) return "red";
     return null;
   }
 
+  colorOfUser(game: ActiveGame, userId: string): PlayerColor | null {
+    if (game.seats.blue?.userId === userId) return "blue";
+    if (game.seats.red?.userId === userId) return "red";
+    return null;
+  }
+
+  seatOfUser(game: ActiveGame, userId: string): Seat | null {
+    const color = this.colorOfUser(game, userId);
+    if (!color) return null;
+    return game.seats[color] ?? null;
+  }
+
   wire(game: ActiveGame): WireGameState | null {
     if (!game.engine) return null;
-    return toWireState(game.id, game.engine, game.winner);
+    return toWireState(game.id, game.engine, game.winner, seatNicknames(game));
   }
 
   async createPrivateRoom(input: {
-    playerId: string;
-    displayName?: string;
+    userId: string;
+    nickname: string;
     socketId: string;
-  }): Promise<{ game: ActiveGame; color: PlayerColor; roomCode: string }> {
-    const existing = this.findByPlayer(input.playerId);
+  }): Promise<{ game: ActiveGame; color: PlayerColor; roomCode: string; playerId: string }> {
+    const existing = this.findByUser(input.userId);
     if (existing && existing.status !== "finished") {
       throw new Error("ALREADY_IN_GAME");
     }
 
     const id = newGameId();
     const code = roomCode();
+    const playerId = newPlayerId();
     const game: ActiveGame = {
       id,
       roomCode: code,
@@ -118,8 +156,9 @@ export class GameRoomRegistry {
       status: "waiting",
       seats: {
         blue: {
-          playerId: input.playerId,
-          displayName: input.displayName ?? "Blue",
+          playerId,
+          userId: input.userId,
+          nickname: input.nickname,
           socketId: input.socketId,
           connected: true,
         },
@@ -134,7 +173,8 @@ export class GameRoomRegistry {
 
     this.games.set(id, game);
     this.byRoomCode.set(code, id);
-    this.playerToGame.set(input.playerId, id);
+    this.playerToGame.set(playerId, id);
+    this.userToGame.set(input.userId, id);
 
     void persistGameCreated({
       gameId: id,
@@ -144,22 +184,28 @@ export class GameRoomRegistry {
       rulesetVersion: "2017.1",
       players: [
         {
-          playerId: input.playerId,
+          playerId,
+          userId: input.userId,
           color: "blue",
-          displayName: input.displayName,
+          displayName: input.nickname,
         },
       ],
     });
 
-    return { game, color: "blue", roomCode: code };
+    return { game, color: "blue", roomCode: code, playerId };
   }
 
   async joinPrivateRoom(input: {
     gameIdOrCode: string;
-    playerId: string;
-    displayName?: string;
+    userId: string;
+    nickname: string;
     socketId: string;
-  }): Promise<{ game: ActiveGame; color: PlayerColor; justStarted: boolean }> {
+  }): Promise<{
+    game: ActiveGame;
+    color: PlayerColor;
+    justStarted: boolean;
+    playerId: string;
+  }> {
     const game =
       this.games.get(input.gameIdOrCode) ??
       this.findByRoomCode(input.gameIdOrCode);
@@ -168,10 +214,18 @@ export class GameRoomRegistry {
       throw new Error("GAME_NOT_FOUND");
     }
 
-    const existingColor = this.colorOf(game, input.playerId);
+    const existingColor = this.colorOfUser(game, input.userId);
     if (existingColor) {
-      this.attachSocket(game, input.playerId, input.socketId);
-      return { game, color: existingColor, justStarted: false };
+      this.attachSocketByUser(game, input.userId, input.socketId);
+      const seat = game.seats[existingColor]!;
+      // Refresh nickname from authoritative account if it changed.
+      seat.nickname = input.nickname;
+      return {
+        game,
+        color: existingColor,
+        justStarted: false,
+        playerId: seat.playerId,
+      };
     }
 
     if (game.status === "finished") {
@@ -182,14 +236,22 @@ export class GameRoomRegistry {
       throw new Error("ROOM_FULL");
     }
 
+    const other = this.findByUser(input.userId);
+    if (other && other.id !== game.id && other.status !== "finished") {
+      throw new Error("ALREADY_IN_GAME");
+    }
+
     const color: PlayerColor = game.seats.blue ? "red" : "blue";
+    const playerId = newPlayerId();
     game.seats[color] = {
-      playerId: input.playerId,
-      displayName: input.displayName ?? (color === "blue" ? "Blue" : "Red"),
+      playerId,
+      userId: input.userId,
+      nickname: input.nickname,
       socketId: input.socketId,
       connected: true,
     };
-    this.playerToGame.set(input.playerId, game.id);
+    this.playerToGame.set(playerId, game.id);
+    this.userToGame.set(input.userId, game.id);
 
     let justStarted = false;
     if (game.seats.blue && game.seats.red && !game.engine) {
@@ -197,28 +259,32 @@ export class GameRoomRegistry {
       justStarted = true;
       void persistPlayerJoined({
         gameId: game.id,
-        playerId: input.playerId,
+        playerId,
+        userId: input.userId,
         color,
-        displayName: input.displayName,
+        displayName: input.nickname,
       });
       void persistGameStarted(game.id);
     } else {
       void persistPlayerJoined({
         gameId: game.id,
-        playerId: input.playerId,
+        playerId,
+        userId: input.userId,
         color,
-        displayName: input.displayName,
+        displayName: input.nickname,
       });
     }
 
-    return { game, color, justStarted };
+    return { game, color, justStarted, playerId };
   }
 
   async createMatchmakingGame(input: {
-    blue: { playerId: string; displayName?: string; socketId: string };
-    red: { playerId: string; displayName?: string; socketId: string };
+    blue: { userId: string; nickname: string; socketId: string };
+    red: { userId: string; nickname: string; socketId: string };
   }): Promise<ActiveGame> {
     const id = newGameId();
+    const bluePlayerId = newPlayerId();
+    const redPlayerId = newPlayerId();
     const game: ActiveGame = {
       id,
       roomCode: null,
@@ -226,14 +292,16 @@ export class GameRoomRegistry {
       status: "waiting",
       seats: {
         blue: {
-          playerId: input.blue.playerId,
-          displayName: input.blue.displayName ?? "Blue",
+          playerId: bluePlayerId,
+          userId: input.blue.userId,
+          nickname: input.blue.nickname,
           socketId: input.blue.socketId,
           connected: true,
         },
         red: {
-          playerId: input.red.playerId,
-          displayName: input.red.displayName ?? "Red",
+          playerId: redPlayerId,
+          userId: input.red.userId,
+          nickname: input.red.nickname,
           socketId: input.red.socketId,
           connected: true,
         },
@@ -248,8 +316,10 @@ export class GameRoomRegistry {
 
     this.startEngine(game);
     this.games.set(id, game);
-    this.playerToGame.set(input.blue.playerId, id);
-    this.playerToGame.set(input.red.playerId, id);
+    this.playerToGame.set(bluePlayerId, id);
+    this.playerToGame.set(redPlayerId, id);
+    this.userToGame.set(input.blue.userId, id);
+    this.userToGame.set(input.red.userId, id);
 
     void persistGameCreated({
       gameId: id,
@@ -259,14 +329,16 @@ export class GameRoomRegistry {
       rulesetVersion: "2017.1",
       players: [
         {
-          playerId: input.blue.playerId,
+          playerId: bluePlayerId,
+          userId: input.blue.userId,
           color: "blue",
-          displayName: input.blue.displayName,
+          displayName: input.blue.nickname,
         },
         {
-          playerId: input.red.playerId,
+          playerId: redPlayerId,
+          userId: input.red.userId,
           color: "red",
-          displayName: input.red.displayName,
+          displayName: input.red.nickname,
         },
       ],
     });
@@ -312,6 +384,20 @@ export class GameRoomRegistry {
     return color;
   }
 
+  attachSocketByUser(
+    game: ActiveGame,
+    userId: string,
+    socketId: string,
+  ): PlayerColor | null {
+    const color = this.colorOfUser(game, userId);
+    if (!color) return null;
+    const seat = game.seats[color];
+    if (!seat) return null;
+    seat.socketId = socketId;
+    seat.connected = true;
+    return color;
+  }
+
   markDisconnected(socketId: string): {
     game: ActiveGame;
     color: PlayerColor;
@@ -334,9 +420,9 @@ export class GameRoomRegistry {
    * Explicit leave (private + matchmaking):
    * - waiting → free seat; destroy room if empty (invalidate room code)
    * - in_progress → resign
-   * Soft disconnect does not call this; same playerId may reattach via join/sync.
+   * Soft disconnect does not call this; same userId may reattach via join/sync.
    */
-  leave(gameId: string, playerId: string):
+  leave(gameId: string, userId: string):
     | { kind: "destroyed"; gameId: string; roomCode: string | null }
     | {
         kind: "seat_freed";
@@ -350,31 +436,35 @@ export class GameRoomRegistry {
     const game = this.games.get(gameId) ?? this.findByRoomCode(gameId);
     if (!game) return null;
 
-    const color = this.colorOf(game, playerId);
+    const color = this.colorOfUser(game, userId);
     if (!color) return null;
+    const seat = game.seats[color];
+    if (!seat) return null;
 
     if (game.status === "finished") {
-      this.playerToGame.delete(playerId);
+      this.playerToGame.delete(seat.playerId);
+      this.userToGame.delete(userId);
       return { kind: "noop_finished", game };
     }
 
     if (game.status === "in_progress") {
-      const resigned = this.resign(game.id, playerId);
+      const resigned = this.resign(game.id, seat.playerId);
       return resigned ? { kind: "resigned", game: resigned } : null;
     }
 
     // waiting — free this seat only
     delete game.seats[color];
-    this.playerToGame.delete(playerId);
+    this.playerToGame.delete(seat.playerId);
+    this.userToGame.delete(userId);
 
     const remaining = (["blue", "red"] as const).filter((c) => game.seats[c]);
     if (remaining.length === 0) {
-      const roomCode = game.roomCode;
+      const code = game.roomCode;
       this.destroyGame(game.id);
-      return { kind: "destroyed", gameId: game.id, roomCode };
+      return { kind: "destroyed", gameId: game.id, roomCode: code };
     }
 
-    return { kind: "seat_freed", game, color, playerId };
+    return { kind: "seat_freed", game, color, playerId: seat.playerId };
   }
 
   /** Drop a game from all in-memory indexes (invalidates room code). */
@@ -387,7 +477,10 @@ export class GameRoomRegistry {
     }
     for (const color of ["blue", "red"] as const) {
       const seat = game.seats[color];
-      if (seat) this.playerToGame.delete(seat.playerId);
+      if (seat) {
+        this.playerToGame.delete(seat.playerId);
+        this.userToGame.delete(seat.userId);
+      }
     }
     this.games.delete(gameId);
     return true;
@@ -405,6 +498,7 @@ export class GameRoomRegistry {
         blue: game.seats.blue?.playerId ?? "00000000-0000-4000-8000-000000000000",
         red: game.seats.red?.playerId ?? "00000000-0000-4000-8000-000000000001",
       },
+      nicknames: seatNicknames(game),
       scores: { blue: 0, red: 0 },
       version: 0,
       status: "in_progress",
@@ -517,7 +611,7 @@ export class GameRoomRegistry {
         y: input.y,
         moveNumber: result.game.moveNumber,
       },
-      state: toWireState(game.id, result.game, game.winner),
+      state: toWireState(game.id, result.game, game.winner, seatNicknames(game)),
     };
 
     game.moveResults.set(input.requestId, { kind: "accepted", payload });
@@ -593,6 +687,7 @@ export class GameRoomRegistry {
     this.games.clear();
     this.byRoomCode.clear();
     this.playerToGame.clear();
+    this.userToGame.clear();
   }
 }
 

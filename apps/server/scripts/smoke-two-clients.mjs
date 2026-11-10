@@ -1,6 +1,9 @@
 /**
  * Smoke: two Socket.IO clients complete a private-room game move exchange.
- * Usage: node apps/server/scripts/smoke-two-clients.mjs
+ * Requires two Clerk session JWTs (users with nicknames already set).
+ *
+ * Usage:
+ *   SMOKE_TOKEN_A=<jwt> SMOKE_TOKEN_B=<jwt> node apps/server/scripts/smoke-two-clients.mjs
  */
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
@@ -12,10 +15,15 @@ const require = createRequire(join(__dirname, "../../../apps/web/package.json"))
 const { io } = require("socket.io-client");
 
 const URL = process.env.SOCKET_URL ?? "http://localhost:4000";
+const TOKEN_A = process.env.SMOKE_TOKEN_A;
+const TOKEN_B = process.env.SMOKE_TOKEN_B;
 
-function client() {
-  const socket = io(URL, { transports: ["websocket"] });
-  return { socket, playerId: randomUUID() };
+function client(token) {
+  const socket = io(URL, {
+    transports: ["websocket"],
+    auth: { token },
+  });
+  return { socket };
 }
 
 function once(socket, event, pred, timeoutMs = 8000) {
@@ -36,8 +44,12 @@ function assert(cond, msg) {
 }
 
 async function main() {
-  const a = client();
-  const b = client();
+  if (!TOKEN_A || !TOKEN_B) {
+    throw new Error("Set SMOKE_TOKEN_A and SMOKE_TOKEN_B to Clerk session JWTs");
+  }
+
+  const a = client(TOKEN_A);
+  const b = client(TOKEN_B);
 
   await Promise.all([
     once(a.socket, "connect"),
@@ -47,17 +59,14 @@ async function main() {
 
   const createAck = await new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error("create timeout")), 5000);
-    a.socket.emit(
-      "game:create",
-      { playerId: a.playerId, displayName: "SmokeA" },
-      (ack) => {
-        clearTimeout(t);
-        resolve(ack);
-      },
-    );
+    a.socket.emit("game:create", {}, (ack) => {
+      clearTimeout(t);
+      resolve(ack);
+    });
   });
   console.log("created", createAck);
   assert(createAck.roomCode, "missing room code");
+  assert(createAck.playerId, "missing seat playerId");
 
   const startedA = once(
     a.socket,
@@ -72,8 +81,6 @@ async function main() {
 
   b.socket.emit("game:join", {
     gameId: createAck.roomCode,
-    playerId: b.playerId,
-    displayName: "SmokeB",
   });
 
   const [sa, sb] = await Promise.all([startedA, startedB]);
@@ -82,9 +89,11 @@ async function main() {
     bColor: sb.color,
     version: sa.state.version,
     cells: sa.state.board.cells.length,
+    nicknames: sa.state.nicknames,
   });
   assert(sa.state.board.cells.length === 39 * 32, "expected full classic board");
   assert(sa.color === "blue" && sb.color === "red", "seat colors");
+  assert(sa.state.nicknames.blue && sa.state.nicknames.red, "nicknames on wire");
 
   const gameId = sa.gameId;
   const req1 = randomUUID();
@@ -95,7 +104,6 @@ async function main() {
   );
   a.socket.emit("game:move", {
     gameId,
-    playerId: a.playerId,
     x: 1,
     y: 1,
     expectedVersion: 0,
@@ -114,7 +122,6 @@ async function main() {
   );
   b.socket.emit("game:move", {
     gameId,
-    playerId: b.playerId,
     x: 2,
     y: 1,
     expectedVersion: 1,
@@ -133,7 +140,6 @@ async function main() {
   );
   b.socket.emit("game:move", {
     gameId,
-    playerId: b.playerId,
     x: 2,
     y: 1,
     expectedVersion: 1,
@@ -142,13 +148,13 @@ async function main() {
   await replay;
   console.log("idempotent replay ok");
 
-  // Reconnect + sync
+  // Reconnect + sync (same JWT → same userId seat)
   a.socket.disconnect();
   await new Promise((r) => setTimeout(r, 150));
   a.socket.connect();
   await once(a.socket, "connect");
   const synced = once(a.socket, "game:state", (p) => p.state?.version === 2);
-  a.socket.emit("game:sync", { gameId, playerId: a.playerId });
+  a.socket.emit("game:sync", { gameId });
   const syncState = await synced;
   assert(syncState.yourColor === "blue", "resync color");
   console.log("resync ok", syncState.state.version);

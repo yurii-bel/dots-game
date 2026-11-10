@@ -26,11 +26,9 @@ describe("socket contracts", () => {
     expect(SocketEvents.gameLeave).toBe("game:leave");
   });
 
-  it("validates a move payload", () => {
-    const playerId = "11111111-1111-4111-8111-111111111111";
+  it("validates a move payload without client identity", () => {
     const parsed = GameMovePayloadSchema.parse({
       gameId: "game_1",
-      playerId,
       x: 20,
       y: 18,
       expectedVersion: 0,
@@ -51,6 +49,7 @@ describe("socket contracts", () => {
           blue: "11111111-1111-4111-8111-111111111111",
           red: "22222222-2222-4222-8222-222222222222",
         },
+        nicknames: { blue: "A", red: "B" },
         scores: { blue: 0, red: 0 },
         version: 0,
         status: "in_progress",
@@ -68,6 +67,7 @@ describe("socket contracts", () => {
       board: { width: 2, height: 2, cells: [] },
       currentPlayer: "blue" as const,
       players: { blue, red },
+      nicknames: { blue: "BlueNick", red: "RedNick" },
       scores: { blue: 0, red: 0 },
       version: 0,
       status: "in_progress" as const,

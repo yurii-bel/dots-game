@@ -1,8 +1,12 @@
 import { z } from "zod";
 
-/** Opaque player id (server-issued UUID for live games). */
+/** Opaque player id (server-issued UUID for live games / engine seats). */
 export const PlayerIdSchema = z.string().uuid();
 export type PlayerId = z.infer<typeof PlayerIdSchema>;
+
+/** Prisma User id (cuid) — authenticated account, distinct from seat playerId. */
+export const UserIdSchema = z.string().min(1);
+export type UserId = z.infer<typeof UserIdSchema>;
 
 export const PlayerColorSchema = z.enum(["blue", "red"]);
 export type PlayerColor = z.infer<typeof PlayerColorSchema>;
@@ -23,8 +27,16 @@ export const MoveErrorCodeSchema = z.enum([
   "GAME_NOT_FOUND",
   "ROOM_FULL",
   "ALREADY_IN_QUEUE",
+  "UNAUTHORIZED",
+  "NICKNAME_REQUIRED",
 ]);
 export type MoveErrorCode = z.infer<typeof MoveErrorCodeSchema>;
+
+/** Socket.IO handshake auth — Clerk JWT only; no client identity claims. */
+export const SocketHandshakeAuthSchema = z.object({
+  token: z.string().min(1),
+});
+export type SocketHandshakeAuth = z.infer<typeof SocketHandshakeAuthSchema>;
 
 /** One board intersection on the wire. */
 export const WireCellSchema = z.object({
@@ -51,6 +63,11 @@ export const WireGameStateSchema = z.object({
   players: z.object({
     blue: PlayerIdSchema,
     red: PlayerIdSchema,
+  }),
+  /** Display nicknames per seat (null while seat empty). */
+  nicknames: z.object({
+    blue: z.string().min(1).nullable(),
+    red: z.string().min(1).nullable(),
   }),
   scores: z.object({
     blue: z.number().int().nonnegative(),
@@ -89,34 +106,25 @@ export const SocketEvents = {
 export type SocketEventName = (typeof SocketEvents)[keyof typeof SocketEvents];
 
 // --- Client → server payloads ---
+// Identity (userId / nickname / color / seat playerId) comes from the verified
+// socket session — never trust client-sent identity fields.
 
-export const MatchmakingJoinPayloadSchema = z.object({
-  playerId: PlayerIdSchema,
-  displayName: z.string().trim().min(1).max(32).optional(),
-});
+export const MatchmakingJoinPayloadSchema = z.object({}).strict();
 export type MatchmakingJoinPayload = z.infer<typeof MatchmakingJoinPayloadSchema>;
 
-export const MatchmakingCancelPayloadSchema = z.object({
-  playerId: PlayerIdSchema,
-});
+export const MatchmakingCancelPayloadSchema = z.object({}).strict();
 export type MatchmakingCancelPayload = z.infer<typeof MatchmakingCancelPayloadSchema>;
 
-export const GameCreatePayloadSchema = z.object({
-  playerId: PlayerIdSchema,
-  displayName: z.string().trim().min(1).max(32).optional(),
-});
+export const GameCreatePayloadSchema = z.object({}).strict();
 export type GameCreatePayload = z.infer<typeof GameCreatePayloadSchema>;
 
 export const GameJoinPayloadSchema = z.object({
   gameId: z.string().min(1),
-  playerId: PlayerIdSchema,
-  displayName: z.string().trim().min(1).max(32).optional(),
 });
 export type GameJoinPayload = z.infer<typeof GameJoinPayloadSchema>;
 
 export const GameMovePayloadSchema = z.object({
   gameId: z.string().min(1),
-  playerId: PlayerIdSchema,
   x: z.number().int(),
   y: z.number().int(),
   /** Client's last known version; must match server or move is rejected. */
@@ -128,27 +136,23 @@ export type GameMovePayload = z.infer<typeof GameMovePayloadSchema>;
 
 export const GameResignPayloadSchema = z.object({
   gameId: z.string().min(1),
-  playerId: PlayerIdSchema,
 });
 export type GameResignPayload = z.infer<typeof GameResignPayloadSchema>;
 
 /** Declare заземление / landing (§8.1г). */
 export const GameLandingPayloadSchema = z.object({
   gameId: z.string().min(1),
-  playerId: PlayerIdSchema,
 });
 export type GameLandingPayload = z.infer<typeof GameLandingPayloadSchema>;
 
 export const GameSyncPayloadSchema = z.object({
   gameId: z.string().min(1),
-  playerId: PlayerIdSchema,
 });
 export type GameSyncPayload = z.infer<typeof GameSyncPayloadSchema>;
 
 /** Explicit leave: waiting → release seat / destroy empty room; in_progress → resign. */
 export const GameLeavePayloadSchema = z.object({
   gameId: z.string().min(1),
-  playerId: PlayerIdSchema,
 });
 export type GameLeavePayload = z.infer<typeof GameLeavePayloadSchema>;
 
@@ -241,5 +245,7 @@ export const GameCreateAckSchema = z.object({
   gameId: z.string().min(1),
   roomCode: z.string().min(1),
   color: PlayerColorSchema,
+  /** Server-issued seat id for this connection (engine playerId). */
+  playerId: PlayerIdSchema,
 });
 export type GameCreateAck = z.infer<typeof GameCreateAckSchema>;

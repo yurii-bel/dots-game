@@ -1,17 +1,37 @@
 export {
   PlayerIdSchema,
   HealthResponseSchema,
+  NicknameSchema,
+  SetNicknameBodySchema,
+  MeResponseSchema,
+  normalizeNickname,
+  NICKNAME_MIN_LENGTH,
+  NICKNAME_MAX_LENGTH,
+  NICKNAME_PATTERN,
   type PlayerId,
   type HealthResponse,
+  type Nickname,
+  type SetNicknameBody,
+  type MeResponse,
 } from "./schemas";
 
 export { APP_NAME, DEFAULT_BOARD_WIDTH, DEFAULT_BOARD_HEIGHT } from "./constants";
+
+export {
+  upsertUserByClerkId,
+  setUserNickname,
+  type UserRecord,
+  type UserUpsertClient,
+  type SetNicknameResult,
+} from "./users";
 
 export {
   SocketEvents,
   PlayerColorSchema,
   GameStatusSchema,
   MoveErrorCodeSchema,
+  UserIdSchema,
+  SocketHandshakeAuthSchema,
   WireCellSchema,
   WireBoardSchema,
   WireGameStateSchema,
@@ -39,6 +59,8 @@ export {
   type PlayerColor,
   type GameStatus,
   type MoveErrorCode,
+  type UserId,
+  type SocketHandshakeAuth,
   type WireCell,
   type WireBoard,
   type WireGameState,

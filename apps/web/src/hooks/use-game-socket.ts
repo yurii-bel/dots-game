@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
 import { useEffect, useRef } from "react";
 import {
   SocketEvents,
@@ -10,13 +11,12 @@ import {
   type GameStartedPayload,
   type GameStatePayload,
   type MatchmakingFoundPayload,
+  type MeResponse,
   type ServerErrorPayload,
 } from "@dots/shared";
-import { getSocket } from "@/lib/socket";
+import { getSocket, resetSocket, setSocketTokenProvider } from "@/lib/socket";
 import {
   clearActiveGame,
-  getDisplayName,
-  getOrCreatePlayerId,
   loadActiveGame,
   saveActiveGame,
 } from "@/lib/player-id";
@@ -25,30 +25,54 @@ import { playSfx } from "@/lib/sounds/player";
 import { useGameStore } from "@/stores/game-store";
 
 function finishedLabel(payload: GameFinishedPayload): string {
+  const nick = (color: "blue" | "red") =>
+    payload.state.nicknames[color] ?? (color === "blue" ? "Blue" : "Red");
+
   if (payload.reason === "resign") {
     return payload.winner
-      ? `${payload.winner === "blue" ? "Blue" : "Red"} wins by resign.`
+      ? `${nick(payload.winner)} wins by resign.`
       : "Game ended by resign.";
   }
   if (payload.reason === "landing") {
     if (!payload.winner) return "Grounding declared — draw.";
-    return `${payload.winner === "blue" ? "Blue" : "Red"} wins after grounding.`;
+    return `${nick(payload.winner)} wins after grounding.`;
   }
   if (payload.reason === "board_full") {
     if (!payload.winner) return "Board full — draw.";
-    return `${payload.winner === "blue" ? "Blue" : "Red"} wins.`;
+    return `${nick(payload.winner)} wins.`;
   }
   return "Game finished.";
 }
 
-/** Wire Socket.IO ↔ Zustand for lobby + play + reconnect. */
+/** Wire Socket.IO ↔ Zustand for lobby + play + reconnect (Clerk JWT auth). */
 export function useGameSocket(): void {
+  const { getToken, isLoaded, isSignedIn } = useAuth();
   const bound = useRef(false);
 
   useEffect(() => {
-    const playerId = getOrCreatePlayerId();
-    const displayName = getDisplayName();
-    useGameStore.getState().setIdentity(playerId, displayName);
+    if (!isLoaded || !isSignedIn) return;
+
+    setSocketTokenProvider(async () => {
+      try {
+        return (await getToken()) ?? null;
+      } catch {
+        return null;
+      }
+    });
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/me", { credentials: "include" });
+        if (!res.ok || cancelled) return;
+        const me = (await res.json()) as MeResponse;
+        if (me.nickname) {
+          useGameStore.getState().setNickname(me.nickname);
+        }
+      } catch {
+        // Nickname chrome is best-effort; socket auth still requires nickname server-side.
+      }
+    })();
 
     const socket = getSocket();
     useGameStore.getState().setConnection(socket.connected ? "connected" : "connecting");
@@ -57,17 +81,27 @@ export function useGameSocket(): void {
       useGameStore.getState().setConnection(
         useGameStore.getState().gameId ? useGameStore.getState().connection : "connected",
       );
-      // Re-sync after reconnect if we have an active game.
-      const { gameId, playerId: pid } = useGameStore.getState();
+      const { gameId } = useGameStore.getState();
       const session = loadActiveGame();
       const id = gameId ?? session?.gameId;
-      if (id && pid) {
-        socket.emit(SocketEvents.gameSync, { gameId: id, playerId: pid });
+      if (id) {
+        socket.emit(SocketEvents.gameSync, { gameId: id });
       }
     };
 
     const onDisconnect = () => {
       useGameStore.getState().setConnection("connecting");
+    };
+
+    const onConnectError = (err: Error) => {
+      const msg = err.message || "Connection failed";
+      if (msg.includes("NICKNAME_REQUIRED")) {
+        useGameStore.getState().setError("Set a nickname before playing.");
+      } else if (msg.includes("UNAUTHORIZED")) {
+        useGameStore.getState().setError("Sign in required.");
+      } else {
+        useGameStore.getState().setError(msg);
+      }
     };
 
     const onStarted = (payload: GameStartedPayload) => {
@@ -110,7 +144,6 @@ export function useGameSocket(): void {
     };
 
     const onAccepted = (payload: GameMoveAcceptedPayload) => {
-      // SFX only here — never on game:state / sync / pending (avoids doubles).
       const gameId =
         useGameStore.getState().gameId ?? payload.state.gameId;
       if (
@@ -156,6 +189,7 @@ export function useGameSocket(): void {
     if (!bound.current) {
       socket.on("connect", onConnect);
       socket.on("disconnect", onDisconnect);
+      socket.on("connect_error", onConnectError);
       socket.on(SocketEvents.gameStarted, onStarted);
       socket.on(SocketEvents.matchmakingFound, onFound);
       socket.on(SocketEvents.gameState, onState);
@@ -172,8 +206,10 @@ export function useGameSocket(): void {
     else socket.connect();
 
     return () => {
+      cancelled = true;
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
       socket.off(SocketEvents.gameStarted, onStarted);
       socket.off(SocketEvents.matchmakingFound, onFound);
       socket.off(SocketEvents.gameState, onState);
@@ -184,35 +220,34 @@ export function useGameSocket(): void {
       socket.off(SocketEvents.gameFinished, onFinished);
       socket.off(SocketEvents.serverError, onError);
       bound.current = false;
+      setSocketTokenProvider(null);
+      // Keep the socket connected across lobby ↔ game navigations;
+      // only clear provider so a remount can re-bind getToken.
+      void resetSocket;
     };
-  }, []);
+  }, [getToken, isLoaded, isSignedIn]);
 }
 
 export function findMatch(): void {
-  const { playerId, displayName } = useGameStore.getState();
-  if (!playerId) return;
   useGameStore.getState().setConnection("matchmaking");
-  getSocket().emit(SocketEvents.matchmakingJoin, { playerId, displayName });
+  getSocket().emit(SocketEvents.matchmakingJoin, {});
 }
 
 export function cancelMatchmaking(): void {
-  const { playerId } = useGameStore.getState();
-  if (!playerId) return;
-  getSocket().emit(SocketEvents.matchmakingCancel, { playerId });
+  getSocket().emit(SocketEvents.matchmakingCancel, {});
   useGameStore.getState().setConnection("connected");
 }
 
 export function createPrivateRoom(): void {
-  const { playerId, displayName } = useGameStore.getState();
-  if (!playerId) return;
   getSocket().emit(
     SocketEvents.gameCreate,
-    { playerId, displayName },
+    {},
     (ack: GameCreateAck) => {
       useGameStore.getState().setLobby({
         gameId: ack.gameId,
         roomCode: ack.roomCode,
         yourColor: ack.color,
+        playerId: ack.playerId,
       });
       saveActiveGame({ gameId: ack.gameId, roomCode: ack.roomCode });
     },
@@ -220,25 +255,19 @@ export function createPrivateRoom(): void {
 }
 
 export function joinPrivateRoom(gameIdOrCode: string): void {
-  const { playerId, displayName } = useGameStore.getState();
-  if (!playerId) return;
   getSocket().emit(SocketEvents.gameJoin, {
     gameId: gameIdOrCode.trim(),
-    playerId,
-    displayName,
   });
 }
 
 export function syncGame(gameId: string): void {
-  const { playerId } = useGameStore.getState();
-  if (!playerId) return;
-  getSocket().emit(SocketEvents.gameSync, { gameId, playerId });
+  getSocket().emit(SocketEvents.gameSync, { gameId });
 }
 
 export function submitMove(x: number, y: number): void {
   const store = useGameStore.getState();
-  const { playerId, gameId, state, yourColor, pending, connection } = store;
-  if (!playerId || !gameId || !state || !yourColor) return;
+  const { gameId, state, yourColor, pending, connection } = store;
+  if (!gameId || !state || !yourColor) return;
   if (connection !== "playing") return;
   if (pending) return;
   if (state.currentPlayer !== yourColor) return;
@@ -249,7 +278,6 @@ export function submitMove(x: number, y: number): void {
   store.setPending({ requestId, x, y, color: yourColor, expectedVersion });
   getSocket().emit(SocketEvents.gameMove, {
     gameId,
-    playerId,
     x,
     y,
     expectedVersion,
@@ -258,15 +286,15 @@ export function submitMove(x: number, y: number): void {
 }
 
 export function resignGame(): void {
-  const { playerId, gameId } = useGameStore.getState();
-  if (!playerId || !gameId) return;
-  getSocket().emit(SocketEvents.gameResign, { gameId, playerId });
+  const { gameId } = useGameStore.getState();
+  if (!gameId) return;
+  getSocket().emit(SocketEvents.gameResign, { gameId });
 }
 
 export function declareLandingGame(): void {
-  const { playerId, gameId } = useGameStore.getState();
-  if (!playerId || !gameId) return;
-  getSocket().emit(SocketEvents.gameLanding, { gameId, playerId });
+  const { gameId } = useGameStore.getState();
+  if (!gameId) return;
+  getSocket().emit(SocketEvents.gameLanding, { gameId });
 }
 
 /**
@@ -292,10 +320,9 @@ export function parkGameSession(): void {
  */
 export function leaveGame(opts?: { gameId?: string }): void {
   const store = useGameStore.getState();
-  const playerId = store.playerId ?? getOrCreatePlayerId();
   const gameId = opts?.gameId ?? store.gameId;
-  if (playerId && gameId) {
-    getSocket().emit(SocketEvents.gameLeave, { gameId, playerId });
+  if (gameId) {
+    getSocket().emit(SocketEvents.gameLeave, { gameId });
   }
   clearActiveGame();
   useGameStore.getState().resetMatch();
