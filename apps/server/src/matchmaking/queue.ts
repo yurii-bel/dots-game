@@ -1,6 +1,6 @@
 type QueuedPlayer = {
-  playerId: string;
-  displayName?: string;
+  userId: string;
+  nickname: string;
   socketId: string;
   enqueuedAt: number;
 };
@@ -8,6 +8,7 @@ type QueuedPlayer = {
 /**
  * Simple FIFO 1v1 matchmaking queue.
  * Pairing is first-come-first-served; no rating.
+ * Identity is Prisma userId (never client-minted).
  */
 export class MatchmakingQueue {
   private readonly queue: QueuedPlayer[] = [];
@@ -17,7 +18,7 @@ export class MatchmakingQueue {
     blue: QueuedPlayer;
     red: QueuedPlayer;
   } {
-    this.remove(player.playerId);
+    this.remove(player.userId);
 
     const waiting = this.queue.shift();
     if (!waiting) {
@@ -33,15 +34,15 @@ export class MatchmakingQueue {
     };
   }
 
-  remove(playerId: string): boolean {
-    const idx = this.queue.findIndex((p) => p.playerId === playerId);
+  remove(userId: string): boolean {
+    const idx = this.queue.findIndex((p) => p.userId === userId);
     if (idx === -1) return false;
     this.queue.splice(idx, 1);
     return true;
   }
 
-  has(playerId: string): boolean {
-    return this.queue.some((p) => p.playerId === playerId);
+  has(userId: string): boolean {
+    return this.queue.some((p) => p.userId === userId);
   }
 
   /** Drop queue entries bound to a disconnected socket. */

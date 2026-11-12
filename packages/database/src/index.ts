@@ -36,4 +36,5 @@ export type {
   Move,
   PlayerColor,
   Prisma,
+  User,
 } from "@prisma/client";

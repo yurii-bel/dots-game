@@ -40,8 +40,10 @@ type TimingInput = {
 };
 
 type GameStore = {
+  /** Server-issued seat playerId once known (engine key). */
   playerId: string | null;
-  displayName: string;
+  /** Authenticated account nickname (from /api/me). */
+  nickname: string | null;
   connection: ConnectionStatus;
   gameId: string | null;
   roomCode: string | null;
@@ -58,12 +60,14 @@ type GameStore = {
   /** Server epoch ms when finished; null until then. */
   finishedAt: number | null;
 
-  setIdentity: (playerId: string, displayName: string) => void;
+  setNickname: (nickname: string | null) => void;
+  setPlayerId: (playerId: string | null) => void;
   setConnection: (connection: ConnectionStatus) => void;
   setLobby: (input: {
     gameId: string;
     roomCode?: string | null;
     yourColor: PlayerColor;
+    playerId: string;
   }) => void;
   applyStarted: (input: {
     gameId: string;
@@ -102,9 +106,17 @@ function nextTiming(
   };
 }
 
+function seatPlayerId(
+  state: WireGameState,
+  color: PlayerColor | null,
+): string | null {
+  if (!color) return null;
+  return state.players[color] ?? null;
+}
+
 export const useGameStore = create<GameStore>((set, get) => ({
   playerId: null,
-  displayName: "Player",
+  nickname: null,
   connection: "idle",
   gameId: null,
   roomCode: null,
@@ -118,15 +130,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
   startedAt: null,
   finishedAt: null,
 
-  setIdentity: (playerId, displayName) => set({ playerId, displayName }),
+  setNickname: (nickname) => set({ nickname }),
+
+  setPlayerId: (playerId) => set({ playerId }),
 
   setConnection: (connection) => set({ connection }),
 
-  setLobby: ({ gameId, roomCode, yourColor }) =>
+  setLobby: ({ gameId, roomCode, yourColor, playerId }) =>
     set({
       gameId,
       roomCode: roomCode ?? null,
       yourColor,
+      playerId,
       connection: "waiting",
       lastError: null,
       finishedMessage: null,
@@ -139,6 +154,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       gameId,
       yourColor,
       state,
+      playerId: seatPlayerId(state, yourColor) ?? get().playerId,
       roomCode: roomCode ?? get().roomCode,
       connection: state.board.cells.length > 0 ? "playing" : "waiting",
       pending: null,
@@ -149,10 +165,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       ...nextTiming(get(), { startedAt, finishedAt }),
     }),
 
-  applyState: (state, yourColor, timing) =>
+  applyState: (state, yourColor, timing) => {
+    const color = yourColor === undefined ? get().yourColor : yourColor;
     set({
       state,
-      yourColor: yourColor === undefined ? get().yourColor : yourColor,
+      yourColor: color,
+      playerId: seatPlayerId(state, color) ?? get().playerId,
       connection:
         state.status === "finished"
           ? "finished"
@@ -161,7 +179,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
             : get().connection,
       gameId: state.gameId,
       ...nextTiming(get(), timing),
-    }),
+    });
+  },
 
   setPending: (pending) => set({ pending }),
 
@@ -219,6 +238,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       gameId: null,
       roomCode: null,
       yourColor: null,
+      playerId: null,
       state: null,
       pending: null,
       lastMove: null,

@@ -12,3 +12,16 @@ export {
   PlayerIdSchema,
   type PlayerId,
 } from "./socket";
+
+export {
+  NicknameSchema,
+  SetNicknameBodySchema,
+  MeResponseSchema,
+  normalizeNickname,
+  NICKNAME_MIN_LENGTH,
+  NICKNAME_MAX_LENGTH,
+  NICKNAME_PATTERN,
+  type Nickname,
+  type SetNicknameBody,
+  type MeResponse,
+} from "./nickname";

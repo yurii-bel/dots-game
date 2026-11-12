@@ -16,6 +16,9 @@ import {
 } from "@dots/shared";
 import { matchmakingQueue } from "../matchmaking/queue.js";
 import { rooms, timingFields, type ActiveGame } from "../game/rooms.js";
+import type { SocketAuthUser } from "../auth/socket-user.js";
+
+type AuthedSocket = Socket & { data: { user: SocketAuthUser } };
 
 function emitError(socket: Socket, payload: ServerErrorPayload): void {
   socket.emit(SocketEvents.serverError, payload);
@@ -27,6 +30,10 @@ function roomName(gameId: string): string {
 
 function joinSocketRoom(socket: Socket, gameId: string): void {
   void socket.join(roomName(gameId));
+}
+
+function authUser(socket: Socket): SocketAuthUser {
+  return (socket as AuthedSocket).data.user;
 }
 
 function broadcastFinished(io: Server, game: ActiveGame): void {
@@ -62,16 +69,16 @@ function emitStartedToSeats(io: Server, game: ActiveGame, state: WireGameState):
 
 export function registerSocketHandlers(io: Server, socket: Socket): void {
   socket.on(SocketEvents.matchmakingJoin, (raw: unknown) => {
-    const parsed = MatchmakingJoinPayloadSchema.safeParse(raw);
+    const parsed = MatchmakingJoinPayloadSchema.safeParse(raw ?? {});
     if (!parsed.success) {
       emitError(socket, { code: "INVALID_PAYLOAD", message: "Invalid matchmaking:join" });
       return;
     }
 
-    const { playerId, displayName } = parsed.data;
-    const existing = rooms.findByPlayer(playerId);
+    const user = authUser(socket);
+    const existing = rooms.findByUser(user.userId);
     if (existing && existing.status !== "finished") {
-      const color = rooms.attachSocket(existing, playerId, socket.id);
+      const color = rooms.attachSocketByUser(existing, user.userId, socket.id);
       joinSocketRoom(socket, existing.id);
       const state = rooms.wire(existing);
       if (state && color) {
@@ -85,8 +92,8 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
     }
 
     const result = matchmakingQueue.enqueue({
-      playerId,
-      displayName,
+      userId: user.userId,
+      nickname: user.nickname,
       socketId: socket.id,
     });
 
@@ -95,13 +102,13 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
     void rooms
       .createMatchmakingGame({
         blue: {
-          playerId: result.blue.playerId,
-          displayName: result.blue.displayName,
+          userId: result.blue.userId,
+          nickname: result.blue.nickname,
           socketId: result.blue.socketId,
         },
         red: {
-          playerId: result.red.playerId,
-          displayName: result.red.displayName,
+          userId: result.red.userId,
+          nickname: result.red.nickname,
           socketId: result.red.socketId,
         },
       })
@@ -135,33 +142,35 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
   });
 
   socket.on(SocketEvents.matchmakingCancel, (raw: unknown) => {
-    const parsed = MatchmakingCancelPayloadSchema.safeParse(raw);
+    const parsed = MatchmakingCancelPayloadSchema.safeParse(raw ?? {});
     if (!parsed.success) {
       emitError(socket, { code: "INVALID_PAYLOAD", message: "Invalid matchmaking:cancel" });
       return;
     }
-    matchmakingQueue.remove(parsed.data.playerId);
+    matchmakingQueue.remove(authUser(socket).userId);
   });
 
   socket.on(SocketEvents.gameCreate, (raw: unknown, ack?: (res: GameCreateAck) => void) => {
-    const parsed = GameCreatePayloadSchema.safeParse(raw);
+    const parsed = GameCreatePayloadSchema.safeParse(raw ?? {});
     if (!parsed.success) {
       emitError(socket, { code: "INVALID_PAYLOAD", message: "Invalid game:create" });
       return;
     }
 
+    const user = authUser(socket);
     void rooms
       .createPrivateRoom({
-        playerId: parsed.data.playerId,
-        displayName: parsed.data.displayName,
+        userId: user.userId,
+        nickname: user.nickname,
         socketId: socket.id,
       })
-      .then(({ game, color, roomCode }) => {
+      .then(({ game, color, roomCode, playerId }) => {
         joinSocketRoom(socket, game.id);
         const payload: GameCreateAck = {
           gameId: game.id,
           roomCode,
           color,
+          playerId,
         };
         ack?.(payload);
         // Lobby only — full board + startedAt arrive when opponent joins.
@@ -189,14 +198,16 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       return;
     }
 
+    const user = authUser(socket);
     void rooms
       .joinPrivateRoom({
         gameIdOrCode: parsed.data.gameId,
-        playerId: parsed.data.playerId,
-        displayName: parsed.data.displayName,
+        userId: user.userId,
+        nickname: user.nickname,
         socketId: socket.id,
       })
-      .then(({ game, color, justStarted }) => {
+      .then(({ game, color, justStarted, playerId }) => {
+        void playerId;
         joinSocketRoom(socket, game.id);
         const state = rooms.wire(game);
 
@@ -209,9 +220,10 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
           // Reconnect into an in-progress (or finished) game.
           const timing = timingFields(game);
           socket.emit(SocketEvents.gameState, { state, yourColor: color, ...timing });
+          const seat = rooms.seatOfUser(game, user.userId);
           socket.to(roomName(game.id)).emit(SocketEvents.gameOpponentReconnected, {
             gameId: game.id,
-            playerId: parsed.data.playerId,
+            playerId: seat!.playerId,
             color,
           });
           if (game.status === "finished" && game.finishedReason) {
@@ -256,13 +268,14 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       return;
     }
 
+    const user = authUser(socket);
     const game = rooms.get(parsed.data.gameId) ?? rooms.findByRoomCode(parsed.data.gameId);
     if (!game) {
       emitError(socket, { code: "GAME_NOT_FOUND", message: "Game not found" });
       return;
     }
 
-    const color = rooms.attachSocket(game, parsed.data.playerId, socket.id);
+    const color = rooms.attachSocketByUser(game, user.userId, socket.id);
     if (!color) {
       emitError(socket, { code: "NOT_IN_GAME", message: "Not a player in this game" });
       return;
@@ -270,6 +283,7 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
 
     joinSocketRoom(socket, game.id);
     const state = rooms.wire(game);
+    const seat = rooms.seatOfUser(game, user.userId)!;
 
     if (!state && game.status === "waiting") {
       // Waiting private room — restore lobby chrome without an engine board.
@@ -289,7 +303,7 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       socket.emit(SocketEvents.gameState, { state, yourColor: color, ...timing });
       socket.to(roomName(game.id)).emit(SocketEvents.gameOpponentReconnected, {
         gameId: game.id,
-        playerId: parsed.data.playerId,
+        playerId: seat.playerId,
         color,
       });
     }
@@ -312,7 +326,8 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       return;
     }
 
-    const result = rooms.leave(parsed.data.gameId, parsed.data.playerId);
+    const user = authUser(socket);
+    const result = rooms.leave(parsed.data.gameId, user.userId);
     if (!result) {
       emitError(socket, { code: "NOT_IN_GAME", message: "Cannot leave this game" });
       return;
@@ -338,11 +353,12 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
     }
 
     // in_progress leave → resign: notify presence then finished.
-    const color = rooms.colorOf(result.game, parsed.data.playerId);
-    if (color) {
+    const seat = rooms.seatOfUser(result.game, user.userId);
+    const color = seat ? rooms.colorOf(result.game, seat.playerId) : null;
+    if (color && seat) {
       socket.to(roomName(result.game.id)).emit(SocketEvents.gameOpponentDisconnected, {
         gameId: result.game.id,
-        playerId: parsed.data.playerId,
+        playerId: seat.playerId,
         color,
       });
     }
@@ -356,7 +372,22 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       return;
     }
 
-    const result = rooms.applyPlayerMove(parsed.data);
+    const user = authUser(socket);
+    const game = rooms.get(parsed.data.gameId);
+    const seat = game ? rooms.seatOfUser(game, user.userId) : null;
+    if (!game || !seat) {
+      socket.emit(SocketEvents.gameMoveRejected, {
+        requestId: parsed.data.requestId,
+        code: "NOT_IN_GAME",
+        message: "You are not a player in this game.",
+      });
+      return;
+    }
+
+    const result = rooms.applyPlayerMove({
+      ...parsed.data,
+      playerId: seat.playerId,
+    });
 
     if (result.kind === "rejected") {
       socket.emit(SocketEvents.gameMoveRejected, result.payload);
@@ -367,9 +398,9 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
     io.to(roomName(result.game.id)).emit(SocketEvents.gameMoveAccepted, result.payload);
     const timing = timingFields(result.game);
     for (const color of ["blue", "red"] as const) {
-      const seat = result.game.seats[color];
-      if (!seat?.socketId) continue;
-      const target = io.sockets.sockets.get(seat.socketId);
+      const s = result.game.seats[color];
+      if (!s?.socketId) continue;
+      const target = io.sockets.sockets.get(s.socketId);
       target?.emit(SocketEvents.gameState, {
         state: result.payload.state,
         yourColor: color,
@@ -389,7 +420,18 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       return;
     }
 
-    const game = rooms.resign(parsed.data.gameId, parsed.data.playerId);
+    const user = authUser(socket);
+    const gameRef = rooms.get(parsed.data.gameId);
+    const seat = gameRef ? rooms.seatOfUser(gameRef, user.userId) : null;
+    if (!seat) {
+      emitError(socket, {
+        code: "GAME_NOT_IN_PROGRESS",
+        message: "Cannot resign this game",
+      });
+      return;
+    }
+
+    const game = rooms.resign(parsed.data.gameId, seat.playerId);
     if (!game) {
       emitError(socket, {
         code: "GAME_NOT_IN_PROGRESS",
@@ -408,7 +450,18 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       return;
     }
 
-    const game = rooms.declarePlayerLanding(parsed.data.gameId, parsed.data.playerId);
+    const user = authUser(socket);
+    const gameRef = rooms.get(parsed.data.gameId);
+    const seat = gameRef ? rooms.seatOfUser(gameRef, user.userId) : null;
+    if (!seat) {
+      emitError(socket, {
+        code: "GAME_NOT_IN_PROGRESS",
+        message: "Cannot declare landing for this game",
+      });
+      return;
+    }
+
+    const game = rooms.declarePlayerLanding(parsed.data.gameId, seat.playerId);
     if (!game) {
       emitError(socket, {
         code: "GAME_NOT_IN_PROGRESS",

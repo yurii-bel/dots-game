@@ -1,4 +1,4 @@
-// Milestone 4: lean Game / GamePlayer / Move for multiplayer persistence.
+// Milestone 4 + auth: lean Game / GamePlayer / Move + Clerk User.
 // Active gameplay state remains in-memory on the Socket.IO server.
 
 generator client {
@@ -17,6 +17,21 @@ model HealthCheck {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("health_checks")
+}
+
+/// Clerk-backed account. Nickname is null until onboarding.
+model User {
+  id                 String   @id @default(cuid())
+  clerkId            String   @unique @map("clerk_id")
+  email              String?  @unique
+  nickname           String?
+  nicknameNormalized String?  @unique @map("nickname_normalized")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  gamePlayers GamePlayer[]
+
+  @@map("users")
 }
 
 enum GameStatus {
@@ -59,15 +74,19 @@ model GamePlayer {
   id          String      @id @default(cuid())
   gameId      String      @map("game_id")
   playerId    String      @map("player_id")
+  /// Prisma User id when the seat is bound to an authenticated account.
+  userId      String?     @map("user_id")
   color       PlayerColor
   displayName String?     @map("display_name")
   createdAt   DateTime    @default(now()) @map("created_at")
 
-  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  game Game  @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@unique([gameId, color])
   @@unique([gameId, playerId])
   @@index([playerId])
+  @@index([userId])
   @@map("game_players")
 }
 

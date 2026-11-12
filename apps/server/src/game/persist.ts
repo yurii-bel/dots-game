@@ -41,7 +41,12 @@ export async function persistGameCreated(input: {
   status: "waiting" | "in_progress";
   ruleset: string;
   rulesetVersion: string;
-  players: Array<{ playerId: string; color: PlayerColor; displayName?: string }>;
+  players: Array<{
+    playerId: string;
+    userId?: string;
+    color: PlayerColor;
+    displayName?: string;
+  }>;
 }): Promise<void> {
   if (!(await canPersist()) || !prisma) return;
   try {
@@ -55,6 +60,7 @@ export async function persistGameCreated(input: {
         players: {
           create: input.players.map((p) => ({
             playerId: p.playerId,
+            userId: p.userId ?? null,
             color: p.color,
             displayName: p.displayName ?? null,
           })),
@@ -81,6 +87,7 @@ export async function persistGameStarted(gameId: string): Promise<void> {
 export async function persistPlayerJoined(input: {
   gameId: string;
   playerId: string;
+  userId?: string;
   color: PlayerColor;
   displayName?: string;
 }): Promise<void> {
@@ -90,6 +97,7 @@ export async function persistPlayerJoined(input: {
       data: {
         gameId: input.gameId,
         playerId: input.playerId,
+        userId: input.userId ?? null,
         color: input.color,
         displayName: input.displayName ?? null,
       },

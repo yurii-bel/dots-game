@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { UserButton } from "@clerk/nextjs";
 import { APP_NAME } from "@dots/shared";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,9 +15,7 @@ import {
   useGameSocket,
 } from "@/hooks/use-game-socket";
 import {
-  getDisplayName,
   loadActiveGame,
-  setDisplayName as persistName,
   type ActiveGameSession,
 } from "@/lib/player-id";
 import { getSocketUrl } from "@/lib/socket";
@@ -28,12 +28,11 @@ export function Lobby() {
   const gameId = useGameStore((s) => s.gameId);
   const roomCode = useGameStore((s) => s.roomCode);
   const lastError = useGameStore((s) => s.lastError);
-  const [name, setName] = useState("Player");
+  const nickname = useGameStore((s) => s.nickname);
   const [joinCode, setJoinCode] = useState("");
   const [savedSession, setSavedSession] = useState<ActiveGameSession | null>(null);
 
   useEffect(() => {
-    setName(getDisplayName());
     setSavedSession(loadActiveGame());
   }, []);
 
@@ -56,28 +55,23 @@ export function Lobby() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-8 px-6 py-16">
-      <div className="space-y-3">
-        <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
-          Milestone 4 · online 1v1
-        </p>
-        <h1 className="text-5xl font-semibold tracking-tight">{APP_NAME}</h1>
-        <p className="text-lg text-muted-foreground">
-          Classic Спортивные точки — Canvas board, server-authoritative Socket.IO.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-3">
+          <p className="text-sm uppercase tracking-[0.2em] text-muted-foreground">
+            Online 1v1
+          </p>
+          <h1 className="text-5xl font-semibold tracking-tight">{APP_NAME}</h1>
+          <p className="text-lg text-muted-foreground">
+            Classic Спортивные точки — Canvas board, server-authoritative Socket.IO.
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-2 pt-1">
+          {nickname ? (
+            <span className="text-sm font-medium text-foreground">{nickname}</span>
+          ) : null}
+          <UserButton afterSignOutUrl="/" />
+        </div>
       </div>
-
-      <label className="block space-y-1.5 text-sm">
-        <span className="text-muted-foreground">Display name</span>
-        <input
-          className="w-full rounded-md border border-input bg-background px-3 py-2"
-          value={name}
-          maxLength={32}
-          onChange={(e) => {
-            setName(e.target.value);
-            persistName(e.target.value);
-          }}
-        />
-      </label>
 
       {hasResume ? (
         <div className="flex flex-col gap-3 rounded-md border border-border/80 bg-secondary/30 p-4">
@@ -166,6 +160,10 @@ export function Lobby() {
       {lastError ? <p className="text-sm text-destructive">{lastError}</p> : null}
 
       <p className="text-xs text-muted-foreground">
+        <Link href="/" className="underline-offset-2 hover:underline">
+          Home
+        </Link>
+        {" · "}
         Socket {getSocketUrl()} · status: {connection}
       </p>
     </main>
