@@ -5,7 +5,7 @@ const EnvSchema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   CLERK_SECRET_KEY: z.string().min(1),
-  /** Optional PEM JWT public key for networkless verifyToken. */
+  /** Optional PEM JWT public key for networkless Clerk JWT verify. */
   CLERK_JWT_KEY: z.string().optional(),
   /**
    * Comma-separated authorized parties (origins) for Clerk JWT azp checks.

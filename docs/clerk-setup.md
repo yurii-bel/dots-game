@@ -2,6 +2,13 @@
 
 Configure a Clerk application, then put keys in `.env` (never commit secrets).
 
+## SDK versions
+
+- Web: `@clerk/nextjs` **v7** (Clerk Core 3) with Next.js App Router 15.5+
+- Game server: `@clerk/backend` **v3** for Socket.IO session JWT verify
+
+Keep these majors aligned so the Dashboard does not show the outdated SDK banner.
+
 ## Providers
 
 Enable **only**:
@@ -21,7 +28,7 @@ Disable other social providers for this milestone.
 | `CLERK_JWT_KEY` (optional) | API keys → Show JWT public key (PEM) for networkless Socket.IO verify |
 | `CLERK_AUTHORIZED_PARTIES` | Usually `http://localhost:3000` (and prod origin) |
 
-See root `.env.example` for placeholders.
+See root `.env.example` for placeholders. `CLERK_ENCRYPTION_KEY` is only required if you pass `secretKey` into `clerkMiddleware()` (this app does not).
 
 ## Webhook
 
