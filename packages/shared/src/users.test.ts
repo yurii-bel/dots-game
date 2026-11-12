@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { setUserNickname, upsertUserByClerkId, type UserRecord } from "./users";
+import {
+  classifyDbError,
+  setUserNickname,
+  upsertUserByClerkId,
+  type UserRecord,
+} from "./users";
 
 function fakeUser(partial: Partial<UserRecord> & Pick<UserRecord, "id" | "clerkId">): UserRecord {
   const now = new Date();
@@ -40,6 +45,46 @@ describe("upsertUserByClerkId", () => {
     const result = await upsertUserByClerkId(db, { clerkId: "clerk_1" });
     expect(result).toEqual(user);
     expect(db.user.findUnique).toHaveBeenCalledOnce();
+  });
+
+  it("retries create without email when email unique conflicts", async () => {
+    const user = fakeUser({ id: "u2", clerkId: "clerk_2", email: null });
+    const db = {
+      user: {
+        upsert: vi
+          .fn()
+          .mockRejectedValueOnce({ code: "P2002" })
+          .mockResolvedValueOnce(user),
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn(),
+      },
+    };
+    const result = await upsertUserByClerkId(db, {
+      clerkId: "clerk_2",
+      email: "taken@example.com",
+    });
+    expect(result).toEqual(user);
+    expect(db.user.upsert).toHaveBeenCalledTimes(2);
+    expect(db.user.upsert).toHaveBeenLastCalledWith({
+      where: { clerkId: "clerk_2" },
+      create: { clerkId: "clerk_2", email: null },
+      update: {},
+    });
+  });
+});
+
+describe("classifyDbError", () => {
+  it("marks connection failures as unavailable", () => {
+    expect(classifyDbError({ code: "P1001", message: "unreachable" }).kind).toBe(
+      "unavailable",
+    );
+    expect(
+      classifyDbError(new Error("Can't reach database server at localhost")).kind,
+    ).toBe("unavailable");
+  });
+
+  it("marks other errors as unknown", () => {
+    expect(classifyDbError(new Error("boom")).kind).toBe("unknown");
   });
 });
 

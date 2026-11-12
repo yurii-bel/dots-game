@@ -31,14 +31,20 @@ pnpm install
 
 # 2. Env — copy and fill Clerk keys (see docs/clerk-setup.md)
 cp .env.example .env
-# DATABASE_URL optional for in-memory play; required for User/nickname persistence.
+# DATABASE_URL optional for anonymous in-memory play; **required for Clerk lobby / nicknames**.
 # CLERK_* required for web auth + Socket.IO JWT verify.
 
-# 3. Run both apps
+# 3. For signed-in play: start Postgres and push the User schema
+docker compose up postgres -d
+pnpm db:push
+
+# 4. Run both apps
 pnpm dev
 # web    → http://localhost:3000 (public landing; lobby at /lobby)
 # server → http://localhost:4000/health
 ```
+
+If `/api/me` returns 503 / lobby shows **Account unavailable** after sign-in, Postgres is down or the schema was never pushed — run `pnpm db:push` (see `docs/clerk-setup.md`).
 
 If the server ever dies on boot with `@prisma/client` / `GameStatus` export errors, regenerate the client and restart (no `db:push` needed):
 
@@ -47,13 +53,13 @@ pnpm db:generate
 pnpm dev
 ```
 
-### Optional Postgres (persist games / moves)
+### Optional Postgres (persist games / moves + auth users)
 
 ```bash
 docker compose up postgres -d
 # set DATABASE_URL in .env (see .env.example)
 pnpm db:generate   # already done by postinstall; safe to re-run
-pnpm db:push
+pnpm db:push       # required for Clerk /api/me User upsert + nicknames
 ```
 
 ### Windows notes
@@ -67,7 +73,7 @@ pnpm dev
 ```
 
 - Do **not** need Docker Desktop for local 1v1 play.
-- `pnpm db:generate` is enough for boot; `db:push` only if you want a real Postgres schema.
+- `pnpm db:generate` is enough for server boot; run `pnpm db:push` before Clerk sign-in / lobby (User table).
 - If `:4000` connection refused: check the `apps/server` terminal for Prisma export errors, run `pnpm db:generate`, then restart `pnpm dev`.
 
 #### Windows / `next/font` note
