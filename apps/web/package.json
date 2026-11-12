@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3000",
-    "build": "next build",
-    "start": "next start --port 3000",
+    "dev": "node --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local ./node_modules/next/dist/bin/next dev --port 3000",
+    "build": "node --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local ./node_modules/next/dist/bin/next build",
+    "start": "node --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local ./node_modules/next/dist/bin/next start --port 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
