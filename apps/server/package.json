@@ -12,7 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@clerk/backend": "^1.25.1",
+    "@clerk/backend": "^3.27.0",
     "@dots/database": "workspace:*",
     "@dots/game-engine": "workspace:*",
     "@dots/shared": "workspace:*",
