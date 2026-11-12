@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
-  SignedIn,
-  SignedOut,
+  Show,
   SignInButton,
   SignUpButton,
   UserButton,
@@ -23,7 +22,7 @@ export default function LandingPage() {
         </p>
       </div>
 
-      <SignedOut>
+      <Show when="signed-out">
         <div className="flex flex-wrap gap-3">
           <SignInButton mode="modal" forceRedirectUrl="/lobby">
             <Button type="button">Sign in</Button>
@@ -37,16 +36,16 @@ export default function LandingPage() {
         <p className="text-sm text-muted-foreground">
           Email + password or Google. Nicknames are unique.
         </p>
-      </SignedOut>
+      </Show>
 
-      <SignedIn>
+      <Show when="signed-in">
         <div className="flex flex-wrap items-center gap-3">
           <Button type="button" asChild>
             <Link href="/lobby">Enter lobby</Link>
           </Button>
-          <UserButton afterSignOutUrl="/" />
+          <UserButton />
         </div>
-      </SignedIn>
+      </Show>
     </main>
   );
 }

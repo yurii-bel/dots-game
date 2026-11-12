@@ -70,7 +70,7 @@ export function GameChrome() {
           {nickname ? (
             <span className="text-xs text-muted-foreground">{nickname}</span>
           ) : null}
-          <UserButton afterSignOutUrl="/" />
+          <UserButton />
         </div>
         <div className="flex flex-wrap items-baseline gap-3">
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">

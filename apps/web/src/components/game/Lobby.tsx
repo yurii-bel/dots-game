@@ -69,7 +69,7 @@ export function Lobby() {
           {nickname ? (
             <span className="text-sm font-medium text-foreground">{nickname}</span>
           ) : null}
-          <UserButton afterSignOutUrl="/" />
+          <UserButton />
         </div>
       </div>
 
