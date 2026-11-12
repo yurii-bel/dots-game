@@ -20,6 +20,7 @@ export { APP_NAME, DEFAULT_BOARD_WIDTH, DEFAULT_BOARD_HEIGHT } from "./constants
 export {
   upsertUserByClerkId,
   setUserNickname,
+  classifyDbError,
   type UserRecord,
   type UserUpsertClient,
   type SetNicknameResult,

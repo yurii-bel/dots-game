@@ -43,13 +43,16 @@ See root `.env.example` for placeholders. `CLERK_ENCRYPTION_KEY` is only require
 3. Lobby / create / join / match / game require a signed-in user with a nickname.
 4. Socket.IO handshake sends the Clerk session JWT only; the game server verifies it and loads Prisma `User`.
 
-## Database
+## Database (required for signed-in lobby)
+
+Clerk sign-in alone is not enough: `/api/me` upserts a Prisma `User`. Without a live Postgres schema the route returns **503** with `code: "DATABASE_UNAVAILABLE"` and the lobby shows an **Account unavailable** screen (not a blank white page).
 
 After setting `DATABASE_URL`:
 
 ```bash
+docker compose up postgres -d   # if using the repo compose file
 pnpm db:generate
 pnpm db:push
 ```
 
-Adds `User` (`clerkId`, nullable `nickname` / `nicknameNormalized`) and optional `GamePlayer.userId`.
+Adds `User` (`clerkId`, nullable `nickname` / `nicknameNormalized`) and optional `GamePlayer.userId`. Re-run `pnpm db:push` whenever the Prisma schema changes or after a fresh Postgres volume.
