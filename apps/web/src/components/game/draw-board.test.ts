@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { WireBoard, WireCell } from "@dots/shared";
 import {
+  BOARD_GRID,
+  BOARD_PAPER,
   CAPTURED_DOT_SCALE,
   HOVER_PREVIEW_ALPHA,
   LAST_MOVE_INNER_RATIO,
@@ -67,5 +69,15 @@ describe("Task 5 visual constants", () => {
 
   it("marks last move with a 70% white inner disk", () => {
     expect(LAST_MOVE_INNER_RATIO).toBe(0.7);
+  });
+});
+
+describe("board polish palette", () => {
+  it("uses a near-white paper background", () => {
+    expect(BOARD_PAPER).toBe("#fafafa");
+  });
+
+  it("uses light grey grid lines only", () => {
+    expect(BOARD_GRID).toBe("#e5e5e5");
   });
 });

@@ -3,10 +3,11 @@ import { computeLayout, formalToCanvas, type BoardLayout } from "./board-geometr
 import { buildTerritoryPaths } from "./territory-paths";
 
 const COLORS = {
-  grid: "#d5dae3",
-  gridMajor: "#b8c0cc",
-  paper: "#f4f6f9",
-  paperEdge: "#e8ecf2",
+  /** Near-white board; light grey grid only (no major-line emphasis). */
+  grid: "#e5e5e5",
+  paper: "#fafafa",
+  paperEdge: "#ffffff",
+  axisLabel: "#9ca3af",
   blue: "#1e40af",
   blueMid: "#2563eb",
   blueHi: "#60a5fa",
@@ -19,6 +20,10 @@ const COLORS = {
   pending: "rgba(15, 23, 42, 0.35)",
   lastMoveInner: "rgba(255, 255, 255, 0.70)",
 } as const;
+
+/** Exported for tests — near-white board fill. */
+export const BOARD_PAPER = COLORS.paper;
+export const BOARD_GRID = COLORS.grid;
 
 /** Preview ghost opacity (Task 3). Distinct from pending (0.55). */
 export const HOVER_PREVIEW_ALPHA = 0.85;
@@ -50,6 +55,35 @@ export function isCellPlayable(board: WireBoard, x: number, y: number): boolean 
 
 export function territoryStrokeWidth(cell: number): number {
   return Math.max(2.5, cell * 0.18);
+}
+
+/** Tensu-style consecutive axis numbers (unique 1…n). */
+function drawAxisLabels(
+  ctx: CanvasRenderingContext2D,
+  board: Pick<WireBoard, "width" | "height">,
+  layout: BoardLayout,
+): void {
+  const fontSize = Math.max(8, Math.min(11, layout.cell * 0.55));
+  ctx.font = `${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+  ctx.fillStyle = COLORS.axisLabel;
+  ctx.textBaseline = "middle";
+
+  // X: 1…width along the bottom
+  ctx.textAlign = "center";
+  for (let x = 1; x <= board.width; x += 1) {
+    const { cx } = formalToCanvas(layout, board, x, 1);
+    const cy =
+      layout.originY + (board.height - 1) * layout.cell + layout.padBottom * 0.55;
+    ctx.fillText(String(x), cx, cy);
+  }
+
+  // Y: 1…height along the left (formal Y-up → 1 at bottom)
+  ctx.textAlign = "right";
+  for (let y = 1; y <= board.height; y += 1) {
+    const { cy } = formalToCanvas(layout, board, 1, y);
+    const cx = layout.originX - 4;
+    ctx.fillText(String(y), cx, cy);
+  }
 }
 
 function fillStone(
@@ -110,19 +144,19 @@ export function drawBoard(
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-  // Soft panel / paper background
+  // Near-white paper background
   const panel = ctx.createLinearGradient(0, 0, 0, cssHeight);
   panel.addColorStop(0, COLORS.paper);
   panel.addColorStop(1, COLORS.paperEdge);
   ctx.fillStyle = panel;
   ctx.fillRect(0, 0, cssWidth, cssHeight);
 
-  // Grid lines (territories draw above — Task 5)
+  // Grid lines — uniform light grey (territories draw above — Task 5)
   ctx.lineWidth = 1;
+  ctx.strokeStyle = COLORS.grid;
   for (let x = 1; x <= board.width; x += 1) {
     const { cx, cy: cyTop } = formalToCanvas(layout, board, x, board.height);
     const { cy: cyBot } = formalToCanvas(layout, board, x, 1);
-    ctx.strokeStyle = x % 5 === 1 ? COLORS.gridMajor : COLORS.grid;
     ctx.beginPath();
     ctx.moveTo(cx, cyTop);
     ctx.lineTo(cx, cyBot);
@@ -131,12 +165,14 @@ export function drawBoard(
   for (let y = 1; y <= board.height; y += 1) {
     const { cx: cxLeft, cy } = formalToCanvas(layout, board, 1, y);
     const { cx: cxRight } = formalToCanvas(layout, board, board.width, y);
-    ctx.strokeStyle = y % 5 === 1 ? COLORS.gridMajor : COLORS.grid;
     ctx.beginPath();
     ctx.moveTo(cxLeft, cy);
     ctx.lineTo(cxRight, cy);
     ctx.stroke();
   }
+
+  // Tensu-style axis labels: X 1…width bottom, Y 1…height left (Y-up)
+  drawAxisLabels(ctx, board, layout);
 
   // Captured territories — R1 hybrid rings (wall centers or half-cell); even-odd holes
   if (board.cells.length > 0) {

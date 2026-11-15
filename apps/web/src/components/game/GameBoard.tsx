@@ -100,12 +100,16 @@ export function GameBoard({
       setHover(null);
       return;
     }
+    // Snap to nearest intersection (no mid-cell dead zone). Clear only when
+    // off-canvas (null) or the cell is not a legal empty intersection.
     const point = resolvePoint(clientX, clientY);
     if (!point || !isCellPlayable(board, point.x, point.y)) {
       setHover(null);
       return;
     }
-    setHover(point);
+    setHover((prev) =>
+      prev && prev.x === point.x && prev.y === point.y ? prev : point,
+    );
   };
 
   const handlePlace = (clientX: number, clientY: number) => {
