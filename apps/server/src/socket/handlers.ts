@@ -67,6 +67,33 @@ function emitStartedToSeats(io: Server, game: ActiveGame, state: WireGameState):
   }
 }
 
+const CLOCK_TICK_MS = 250;
+
+/** Server-authoritative Option B clock ticker — finishes timed-out games. */
+export function startClockTicker(io: Server): () => void {
+  const id = setInterval(() => {
+    const finished = rooms.tickAllClocks();
+    for (const game of finished) {
+      broadcastFinished(io, game);
+      // Push final state + clocks so clients freeze correctly.
+      const timing = timingFields(game);
+      const state = rooms.wire(game);
+      if (!state) continue;
+      for (const color of ["blue", "red"] as const) {
+        const seat = game.seats[color];
+        if (!seat?.socketId) continue;
+        const target = io.sockets.sockets.get(seat.socketId);
+        target?.emit(SocketEvents.gameState, {
+          state,
+          yourColor: color,
+          ...timing,
+        });
+      }
+    }
+  }, CLOCK_TICK_MS);
+  return () => clearInterval(id);
+}
+
 export function registerSocketHandlers(io: Server, socket: Socket): void {
   socket.on(SocketEvents.matchmakingJoin, (raw: unknown) => {
     const parsed = MatchmakingJoinPayloadSchema.safeParse(raw ?? {});
@@ -391,6 +418,10 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
 
     if (result.kind === "rejected") {
       socket.emit(SocketEvents.gameMoveRejected, result.payload);
+      // Late move after timeout — still notify both seats of the finish.
+      if (result.game?.status === "finished" && result.game.finishedReason === "timeout") {
+        broadcastFinished(io, result.game);
+      }
       return;
     }
 

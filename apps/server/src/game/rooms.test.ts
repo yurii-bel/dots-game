@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { randomUUID } from "node:crypto";
+import { MAIN_TIME_MS, TURN_BANK_MS } from "@dots/shared";
 import { GameRoomRegistry, timingFields } from "./rooms.js";
 
 function seatInput(suffix: string) {
@@ -121,7 +122,12 @@ describe("GameRoomRegistry", () => {
     expect(joined.game.engine?.players.blue).toBe(hostSeat);
     expect(joined.game.engine?.players.red).toBe(joined.playerId);
     expect(joined.game.startedAt).toEqual(expect.any(Number));
-    expect(timingFields(joined.game)).toEqual({ startedAt: joined.game.startedAt });
+    expect(joined.game.clocks?.blue.turnBankMs).toBe(TURN_BANK_MS);
+    expect(joined.game.clocks?.blue.mainMs).toBe(MAIN_TIME_MS);
+    const timing = timingFields(joined.game);
+    expect(timing.startedAt).toBe(joined.game.startedAt);
+    expect(timing.clocks?.activeColor).toBe("blue");
+    expect(timing.clocks?.blue.mainMs).toBe(MAIN_TIME_MS);
   });
 
   it("reconnects by userId and reuses the same seat playerId", async () => {
@@ -158,10 +164,58 @@ describe("GameRoomRegistry", () => {
     const resigned = registry.resign(game.id, blueId);
     expect(resigned?.finishedAt).toEqual(expect.any(Number));
     expect(resigned!.finishedAt!).toBeGreaterThanOrEqual(resigned!.startedAt!);
-    expect(timingFields(resigned!)).toEqual({
-      startedAt: resigned!.startedAt,
-      finishedAt: resigned!.finishedAt,
+    const timing = timingFields(resigned!);
+    expect(timing.startedAt).toBe(resigned!.startedAt);
+    expect(timing.finishedAt).toBe(resigned!.finishedAt);
+    expect(timing.clocks?.activeColor).toBeNull();
+    expect(timing.clocks?.blue.mainMs).toBe(MAIN_TIME_MS);
+  });
+
+  it("initializes Option B clocks and refills turn bank after a move", async () => {
+    const game = await registry.createMatchmakingGame({
+      blue: seatInput("clk-b"),
+      red: seatInput("clk-r"),
     });
+    expect(game.clocks?.blue.turnBankMs).toBe(TURN_BANK_MS);
+    expect(game.clocks?.blue.mainMs).toBe(MAIN_TIME_MS);
+    expect(game.turnClockStartedAt).toEqual(expect.any(Number));
+
+    // Spend some of blue's bank before the move.
+    game.turnClockStartedAt = Date.now() - 5_000;
+    const blueId = game.seats.blue!.playerId;
+    const result = registry.applyPlayerMove({
+      gameId: game.id,
+      playerId: blueId,
+      x: 1,
+      y: 1,
+      expectedVersion: 0,
+      requestId: randomUUID(),
+    });
+    expect(result.kind).toBe("accepted");
+    expect(game.clocks!.blue.turnBankMs).toBe(TURN_BANK_MS - 5_000);
+    expect(game.clocks!.blue.mainMs).toBe(MAIN_TIME_MS);
+    // Red's turn bank refilled for the new turn.
+    expect(game.clocks!.red.turnBankMs).toBe(TURN_BANK_MS);
+    expect(timingFields(game).clocks?.activeColor).toBe("red");
+  });
+
+  it("finishes with timeout when main expires", async () => {
+    const game = await registry.createMatchmakingGame({
+      blue: seatInput("to-b"),
+      red: seatInput("to-r"),
+    });
+    game.clocks = {
+      blue: { turnBankMs: 0, mainMs: 500 },
+      red: { turnBankMs: TURN_BANK_MS, mainMs: MAIN_TIME_MS },
+    };
+    game.turnClockStartedAt = Date.now() - 1_000;
+
+    const timedOut = registry.tickAllClocks();
+    expect(timedOut).toHaveLength(1);
+    expect(game.status).toBe("finished");
+    expect(game.finishedReason).toBe("timeout");
+    expect(game.winner).toBe("red");
+    expect(game.clocks!.blue.mainMs).toBe(0);
   });
 
   it("reattaches socket on reconnect via sync path", async () => {

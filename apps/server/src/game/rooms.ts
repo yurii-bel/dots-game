@@ -9,6 +9,11 @@ import {
 import {
   DEFAULT_BOARD_HEIGHT,
   DEFAULT_BOARD_WIDTH,
+  createInitialClocks,
+  refillTurnBank,
+  tickActiveClock,
+  type ClocksPair,
+  type GameClocks,
   type GameMoveAcceptedPayload,
   type GameMoveRejectedPayload,
   type WireGameState,
@@ -44,23 +49,64 @@ export type ActiveGame = {
   seats: Partial<Record<PlayerColor, Seat>>;
   engine: GameState | null;
   winner: PlayerColor | null;
-  finishedReason: "board_full" | "resign" | "disconnect_forfeit" | "landing" | null;
+  finishedReason:
+    | "board_full"
+    | "resign"
+    | "disconnect_forfeit"
+    | "landing"
+    | "timeout"
+    | null;
   /** Server wall-clock ms when startEngine ran; null while waiting. */
   startedAt: number | null;
   /** Server wall-clock ms when status became finished; null until then. */
   finishedAt: number | null;
+  /** Option B clocks; null while waiting. */
+  clocks: ClocksPair | null;
+  /** Server ms when the current turn clock segment started. */
+  turnClockStartedAt: number | null;
   /** requestId → prior move result (idempotency). */
   moveResults: Map<string, MoveResultCache>;
 };
 
+/** Snapshot clocks with elapsed applied for the active seat (does not mutate). */
+export function snapshotClocks(game: ActiveGame, now = Date.now()): GameClocks | undefined {
+  if (!game.clocks || !game.engine) return undefined;
+  const activeColor =
+    game.status === "in_progress" ? game.engine.currentPlayer : null;
+  let clocks = game.clocks;
+  if (
+    activeColor &&
+    game.turnClockStartedAt != null &&
+    game.status === "in_progress"
+  ) {
+    clocks = tickActiveClock(
+      game.clocks,
+      activeColor,
+      now - game.turnClockStartedAt,
+    ).clocks;
+  }
+  return {
+    blue: { ...clocks.blue },
+    red: { ...clocks.red },
+    activeColor,
+    syncedAt: now,
+  };
+}
+
 /** Optional timing fields for socket payloads (shape A). */
-export function timingFields(game: ActiveGame): {
+export function timingFields(
+  game: ActiveGame,
+  now = Date.now(),
+): {
   startedAt?: number;
   finishedAt?: number;
+  clocks?: GameClocks;
 } {
+  const clocks = snapshotClocks(game, now);
   return {
     ...(game.startedAt != null ? { startedAt: game.startedAt } : {}),
     ...(game.finishedAt != null ? { finishedAt: game.finishedAt } : {}),
+    ...(clocks ? { clocks } : {}),
   };
 }
 
@@ -168,6 +214,8 @@ export class GameRoomRegistry {
       finishedReason: null,
       startedAt: null,
       finishedAt: null,
+      clocks: null,
+      turnClockStartedAt: null,
       moveResults: new Map(),
     };
 
@@ -311,6 +359,8 @@ export class GameRoomRegistry {
       finishedReason: null,
       startedAt: null,
       finishedAt: null,
+      clocks: null,
+      turnClockStartedAt: null,
       moveResults: new Map(),
     };
 
@@ -363,8 +413,13 @@ export class GameRoomRegistry {
       },
     });
     game.status = "in_progress";
+    const now = Date.now();
     if (game.startedAt == null) {
-      game.startedAt = Date.now();
+      game.startedAt = now;
+    }
+    if (game.clocks == null) {
+      game.clocks = createInitialClocks();
+      game.turnClockStartedAt = now;
     }
   }
 
@@ -372,6 +427,82 @@ export class GameRoomRegistry {
     if (game.finishedAt == null) {
       game.finishedAt = Date.now();
     }
+    game.turnClockStartedAt = null;
+  }
+
+  /**
+   * Apply elapsed time to the active seat's clock and commit.
+   * Returns true if the active player timed out (caller should finish).
+   */
+  commitClockTick(game: ActiveGame, now = Date.now()): boolean {
+    if (
+      game.status !== "in_progress" ||
+      !game.engine ||
+      !game.clocks ||
+      game.turnClockStartedAt == null
+    ) {
+      return false;
+    }
+    const active = game.engine.currentPlayer;
+    const { clocks, timedOut } = tickActiveClock(
+      game.clocks,
+      active,
+      now - game.turnClockStartedAt,
+    );
+    game.clocks = clocks;
+    game.turnClockStartedAt = now;
+    return timedOut;
+  }
+
+  /** Finish by timeout — active player loses. */
+  finishByTimeout(gameId: string, now = Date.now()): ActiveGame | null {
+    const game = this.games.get(gameId);
+    if (!game || !game.engine || game.status !== "in_progress") return null;
+
+    // Drain remaining time so snapshot shows zeros for the loser.
+    this.commitClockTick(game, now);
+    if (!game.clocks) return null;
+
+    const loser = game.engine.currentPlayer;
+    const winner: PlayerColor = loser === "blue" ? "red" : "blue";
+    const loserClock = game.clocks[loser];
+    if (!(loserClock.turnBankMs === 0 && loserClock.mainMs === 0)) {
+      return null;
+    }
+
+    game.status = "finished";
+    game.finishedReason = "timeout";
+    game.winner = winner;
+    this.markFinished(game);
+    game.engine = {
+      ...game.engine,
+      status: "finished",
+      winner,
+      finishedReason: null,
+    };
+
+    void persistGameFinished({
+      gameId: game.id,
+      winner,
+      reason: "timeout",
+      version: game.engine.moveNumber,
+    });
+
+    return game;
+  }
+
+  /** Tick all in-progress games; return those that timed out. */
+  tickAllClocks(now = Date.now()): ActiveGame[] {
+    const timedOut: ActiveGame[] = [];
+    for (const game of this.games.values()) {
+      if (game.status !== "in_progress") continue;
+      const out = this.commitClockTick(game, now);
+      if (out) {
+        const finished = this.finishByTimeout(game.id, now);
+        if (finished) timedOut.push(finished);
+      }
+    }
+    return timedOut;
   }
 
   attachSocket(game: ActiveGame, playerId: string, socketId: string): PlayerColor | null {
@@ -547,6 +678,18 @@ export class GameRoomRegistry {
       return { kind: "rejected", game, payload };
     }
 
+    // Drain active clock before accepting; timeout wins over a late move.
+    if (this.commitClockTick(game)) {
+      const finished = this.finishByTimeout(game.id);
+      const payload: GameMoveRejectedPayload = {
+        requestId: input.requestId,
+        code: "GAME_NOT_IN_PROGRESS",
+        message: "Time expired.",
+        state: finished ? (this.wire(finished) ?? undefined) : this.wire(game) ?? undefined,
+      };
+      return { kind: "rejected", game: finished ?? game, payload };
+    }
+
     if (this.colorOf(game, input.playerId) === null) {
       const payload: GameMoveRejectedPayload = {
         requestId: input.requestId,
@@ -600,6 +743,10 @@ export class GameRoomRegistry {
         reason: game.finishedReason ?? "board_full",
         version: result.game.moveNumber,
       });
+    } else if (game.clocks) {
+      // Next player's turn: refill their turn bank; keep mains.
+      game.clocks = refillTurnBank(game.clocks, result.game.currentPlayer);
+      game.turnClockStartedAt = Date.now();
     }
 
     const payload: GameMoveAcceptedPayload = {

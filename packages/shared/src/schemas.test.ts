@@ -91,5 +91,20 @@ describe("socket contracts", () => {
       finishedAt: 1_700_000_065_000,
     });
     expect(finished.finishedAt).toBe(1_700_000_065_000);
+
+    const timeout = GameFinishedPayloadSchema.parse({
+      gameId: "g1",
+      reason: "timeout",
+      winner: "blue",
+      state: { ...state, status: "finished", winner: "blue" },
+      clocks: {
+        blue: { turnBankMs: 0, mainMs: 120_000 },
+        red: { turnBankMs: 0, mainMs: 0 },
+        activeColor: null,
+        syncedAt: 1_700_000_065_000,
+      },
+    });
+    expect(timeout.reason).toBe("timeout");
+    expect(timeout.clocks?.red.mainMs).toBe(0);
   });
 });

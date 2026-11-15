@@ -3,6 +3,7 @@ import type { WireBoard, WireCell } from "@dots/shared";
 import {
   CAPTURED_DOT_SCALE,
   HOVER_PREVIEW_ALPHA,
+  LAST_MOVE_INNER_RATIO,
   isCellPlayable,
   territoryStrokeWidth,
 } from "./draw-board";
@@ -62,5 +63,9 @@ describe("Task 5 visual constants", () => {
   it("scales territory stroke with cell size", () => {
     expect(territoryStrokeWidth(10)).toBe(Math.max(2.5, 10 * 0.18));
     expect(territoryStrokeWidth(8)).toBe(2.5);
+  });
+
+  it("marks last move with a 70% white inner disk", () => {
+    expect(LAST_MOVE_INNER_RATIO).toBe(0.7);
   });
 });
