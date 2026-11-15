@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type {
+  GameClocks,
   GameMoveAcceptedPayload,
   GameMoveRejectedPayload,
   PlayerColor,
@@ -37,6 +38,7 @@ export type LastMove = {
 type TimingInput = {
   startedAt?: number | null;
   finishedAt?: number | null;
+  clocks?: GameClocks | null;
 };
 
 type GameStore = {
@@ -59,6 +61,8 @@ type GameStore = {
   startedAt: number | null;
   /** Server epoch ms when finished; null until then. */
   finishedAt: number | null;
+  /** Option B clocks from server; null while waiting. */
+  clocks: GameClocks | null;
 
   setNickname: (nickname: string | null) => void;
   setPlayerId: (playerId: string | null) => void;
@@ -90,9 +94,17 @@ type GameStore = {
 };
 
 function nextTiming(
-  current: { startedAt: number | null; finishedAt: number | null },
+  current: {
+    startedAt: number | null;
+    finishedAt: number | null;
+    clocks: GameClocks | null;
+  },
   timing?: TimingInput,
-): { startedAt: number | null; finishedAt: number | null } {
+): {
+  startedAt: number | null;
+  finishedAt: number | null;
+  clocks: GameClocks | null;
+} {
   if (!timing) return current;
   return {
     startedAt:
@@ -103,6 +115,7 @@ function nextTiming(
       timing.finishedAt === undefined
         ? current.finishedAt
         : timing.finishedAt,
+    clocks: timing.clocks === undefined ? current.clocks : timing.clocks,
   };
 }
 
@@ -129,6 +142,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   finishedMessage: null,
   startedAt: null,
   finishedAt: null,
+  clocks: null,
 
   setNickname: (nickname) => set({ nickname }),
 
@@ -147,9 +161,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       finishedMessage: null,
       startedAt: null,
       finishedAt: null,
+      clocks: null,
     }),
 
-  applyStarted: ({ gameId, yourColor, state, roomCode, startedAt, finishedAt }) =>
+  applyStarted: ({
+    gameId,
+    yourColor,
+    state,
+    roomCode,
+    startedAt,
+    finishedAt,
+    clocks,
+  }) =>
     set({
       gameId,
       yourColor,
@@ -162,7 +185,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastError: null,
       finishedMessage: null,
       opponentConnected: true,
-      ...nextTiming(get(), { startedAt, finishedAt }),
+      ...nextTiming(get(), { startedAt, finishedAt, clocks }),
     }),
 
   applyState: (state, yourColor, timing) => {
@@ -247,5 +270,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       finishedMessage: null,
       startedAt: null,
       finishedAt: null,
+      clocks: null,
     }),
 }));

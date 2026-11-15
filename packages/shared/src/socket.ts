@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { GameClocksSchema } from "./clocks";
 
 /** Opaque player id (server-issued UUID for live games / engine seats). */
 export const PlayerIdSchema = z.string().uuid();
@@ -158,10 +159,11 @@ export type GameLeavePayload = z.infer<typeof GameLeavePayloadSchema>;
 
 // --- Server → client payloads ---
 
-/** Server wall-clock ms epoch; omitted while waiting / before startEngine. */
+/** Server wall-clock ms epoch + Option B clocks; omitted while waiting. */
 export const GameTimingFieldsSchema = z.object({
   startedAt: z.number().int().nonnegative().optional(),
   finishedAt: z.number().int().nonnegative().optional(),
+  clocks: GameClocksSchema.optional(),
 });
 export type GameTimingFields = z.infer<typeof GameTimingFieldsSchema>;
 
@@ -227,7 +229,13 @@ export type GameOpponentPresencePayload = z.infer<
 export const GameFinishedPayloadSchema = z
   .object({
     gameId: z.string().min(1),
-    reason: z.enum(["board_full", "resign", "disconnect_forfeit", "landing"]),
+    reason: z.enum([
+      "board_full",
+      "resign",
+      "disconnect_forfeit",
+      "landing",
+      "timeout",
+    ]),
     winner: PlayerColorSchema.nullable(),
     state: WireGameStateSchema,
   })

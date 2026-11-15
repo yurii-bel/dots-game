@@ -7,7 +7,7 @@ import { APP_NAME, HealthResponseSchema } from "@dots/shared";
 import { env } from "./env.js";
 import { verifyClerkSocketToken } from "./auth/clerk.js";
 import { loadSocketUser } from "./auth/socket-user.js";
-import { registerSocketHandlers } from "./socket/handlers.js";
+import { registerSocketHandlers, startClockTicker } from "./socket/handlers.js";
 
 const app = express();
 app.use(
@@ -62,6 +62,8 @@ io.use((socket, next) => {
 io.on("connection", (socket) => {
   registerSocketHandlers(io, socket);
 });
+
+startClockTicker(io);
 
 httpServer.listen(env.PORT, () => {
   console.log(`[${APP_NAME}] Socket.IO multiplayer server listening on :${env.PORT}`);

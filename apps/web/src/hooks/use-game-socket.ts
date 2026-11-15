@@ -41,6 +41,11 @@ function finishedLabel(payload: GameFinishedPayload): string {
     if (!payload.winner) return "Board full — draw.";
     return `${nick(payload.winner)} wins.`;
   }
+  if (payload.reason === "timeout") {
+    return payload.winner
+      ? `${nick(payload.winner)} wins on time.`
+      : "Game ended on time.";
+  }
   return "Game finished.";
 }
 
@@ -112,6 +117,7 @@ export function useGameSocket(): void {
         roomCode: payload.roomCode,
         startedAt: payload.startedAt ?? null,
         finishedAt: payload.finishedAt ?? null,
+        clocks: payload.clocks ?? null,
       });
       saveActiveGame({ gameId: payload.gameId, roomCode: payload.roomCode });
     };
@@ -123,6 +129,7 @@ export function useGameSocket(): void {
         state: payload.state,
         startedAt: payload.startedAt ?? null,
         finishedAt: payload.finishedAt ?? null,
+        clocks: payload.clocks ?? null,
       });
       saveActiveGame({ gameId: payload.gameId });
     };
@@ -131,6 +138,7 @@ export function useGameSocket(): void {
       useGameStore.getState().applyState(payload.state, payload.yourColor, {
         startedAt: payload.startedAt,
         finishedAt: payload.finishedAt,
+        clocks: payload.clocks,
       });
       if (payload.state.board.cells.length > 0) {
         const prev = loadActiveGame();
@@ -174,6 +182,9 @@ export function useGameSocket(): void {
       useGameStore.getState().setFinished(finishedLabel(payload), payload.state, {
         startedAt: payload.startedAt,
         finishedAt: payload.finishedAt,
+        clocks: payload.clocks
+          ? { ...payload.clocks, activeColor: null }
+          : payload.clocks,
       });
       clearActiveGame();
     };

@@ -3,15 +3,21 @@ import { computeLayout, formalToCanvas, type BoardLayout } from "./board-geometr
 import { buildTerritoryPaths } from "./territory-paths";
 
 const COLORS = {
-  grid: "#c8cdd5",
-  gridMajor: "#aeb6c2",
-  paper: "#ffffff",
-  blue: "#1d4ed8",
-  red: "#dc2626",
+  grid: "#d5dae3",
+  gridMajor: "#b8c0cc",
+  paper: "#f4f6f9",
+  paperEdge: "#e8ecf2",
+  blue: "#1e40af",
+  blueMid: "#2563eb",
+  blueHi: "#60a5fa",
+  red: "#b91c1c",
+  redMid: "#dc2626",
+  redHi: "#f87171",
   /** Task 5 — approved 30% fill opacity. */
   blueTerritory: "rgba(37, 99, 235, 0.30)",
   redTerritory: "rgba(220, 38, 38, 0.30)",
   pending: "rgba(15, 23, 42, 0.35)",
+  lastMoveInner: "rgba(255, 255, 255, 0.70)",
 } as const;
 
 /** Preview ghost opacity (Task 3). Distinct from pending (0.55). */
@@ -19,6 +25,9 @@ export const HOVER_PREVIEW_ALPHA = 0.85;
 
 /** Mild shrink for disabled/captured stones (Task 5). */
 export const CAPTURED_DOT_SCALE = 0.85;
+
+/** Last-move marker: white disk radius as a fraction of the stone. */
+export const LAST_MOVE_INNER_RATIO = 0.7;
 
 export type LastMoveHighlight = {
   x: number;
@@ -43,6 +52,46 @@ export function territoryStrokeWidth(cell: number): number {
   return Math.max(2.5, cell * 0.18);
 }
 
+function fillStone(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  color: PlayerColor,
+  disabled: boolean,
+): void {
+  const hi = color === "blue" ? COLORS.blueHi : COLORS.redHi;
+  const mid = color === "blue" ? COLORS.blueMid : COLORS.redMid;
+  const deep = color === "blue" ? COLORS.blue : COLORS.red;
+
+  if (disabled) {
+    ctx.beginPath();
+    ctx.fillStyle = mid;
+    ctx.globalAlpha = 0.5;
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  const g = ctx.createRadialGradient(
+    cx - radius * 0.35,
+    cy - radius * 0.4,
+    radius * 0.08,
+    cx,
+    cy + radius * 0.1,
+    radius,
+  );
+  g.addColorStop(0, hi);
+  g.addColorStop(0.45, mid);
+  g.addColorStop(1, deep);
+
+  ctx.beginPath();
+  ctx.fillStyle = g;
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 export type DrawOptions = {
   board: WireBoard;
   layout: BoardLayout;
@@ -61,8 +110,11 @@ export function drawBoard(
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-  // Paper background
-  ctx.fillStyle = COLORS.paper;
+  // Soft panel / paper background
+  const panel = ctx.createLinearGradient(0, 0, 0, cssHeight);
+  panel.addColorStop(0, COLORS.paper);
+  panel.addColorStop(1, COLORS.paperEdge);
+  ctx.fillStyle = panel;
   ctx.fillRect(0, 0, cssWidth, cssHeight);
 
   // Grid lines (territories draw above — Task 5)
@@ -129,7 +181,7 @@ export function drawBoard(
 
   const dotRadius = Math.max(2.5, cell * 0.28);
 
-  // Placed points
+  // Placed points — deeper 3D stones
   if (board.cells.length > 0) {
     for (let y = 1; y <= board.height; y += 1) {
       for (let x = 1; x <= board.width; x += 1) {
@@ -139,50 +191,33 @@ export function drawBoard(
         const radius = cellData.disabled
           ? dotRadius * CAPTURED_DOT_SCALE
           : dotRadius;
-        ctx.beginPath();
-        ctx.fillStyle = cellData.color === "blue" ? COLORS.blue : COLORS.red;
-        if (cellData.disabled) {
-          ctx.globalAlpha = 0.55;
-        }
-        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
+        fillStone(ctx, cx, cy, radius, cellData.color, cellData.disabled);
       }
     }
   }
 
-  // Last-move double ring (Task 5)
+  // Last-move: 70% white inner disk (no outer rings)
   if (lastMove) {
     const { cx, cy } = formalToCanvas(layout, board, lastMove.x, lastMove.y);
-    const stroke = lastMove.color === "blue" ? COLORS.blue : COLORS.red;
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = Math.max(1.5, cell * 0.08);
-    for (const pad of [3, 6]) {
-      ctx.beginPath();
-      ctx.arc(cx, cy, dotRadius + pad, 0, Math.PI * 2);
-      ctx.stroke();
-    }
+    ctx.beginPath();
+    ctx.fillStyle = COLORS.lastMoveInner;
+    ctx.arc(cx, cy, dotRadius * LAST_MOVE_INNER_RATIO, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   // Hover preview — player color @ 85%, legal empty cells only
   if (hover && yourColor && isCellPlayable(board, hover.x, hover.y)) {
     const { cx, cy } = formalToCanvas(layout, board, hover.x, hover.y);
-    ctx.beginPath();
-    ctx.fillStyle = yourColor === "blue" ? COLORS.blue : COLORS.red;
     ctx.globalAlpha = HOVER_PREVIEW_ALPHA;
-    ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
-    ctx.fill();
+    fillStone(ctx, cx, cy, dotRadius, yourColor, false);
     ctx.globalAlpha = 1;
   }
 
   // Optimistic pending move
   if (pending) {
     const { cx, cy } = formalToCanvas(layout, board, pending.x, pending.y);
-    ctx.beginPath();
-    ctx.fillStyle = pending.color === "blue" ? COLORS.blue : COLORS.red;
     ctx.globalAlpha = 0.55;
-    ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
-    ctx.fill();
+    fillStone(ctx, cx, cy, dotRadius, pending.color, false);
     ctx.globalAlpha = 1;
     ctx.beginPath();
     ctx.strokeStyle = COLORS.pending;
