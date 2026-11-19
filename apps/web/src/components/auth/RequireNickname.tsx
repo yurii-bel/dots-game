@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { MeResponse } from "@dots/shared";
+import { DualDotSpinner } from "@/components/game/DualDotSpinner";
 import { Button } from "@/components/ui/button";
 
 type AccountError = {
@@ -111,7 +112,10 @@ export function RequireNickname({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <main className="mx-auto flex min-h-screen max-w-lg items-center justify-center px-6">
-        <p className="text-sm text-muted-foreground">Loading account…</p>
+        <div className="flex items-center gap-2.5">
+          <DualDotSpinner label="Loading account" />
+          <span className="text-sm text-muted-foreground">Loading account…</span>
+        </div>
       </main>
     );
   }
