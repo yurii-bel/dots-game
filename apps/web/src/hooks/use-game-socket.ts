@@ -97,6 +97,12 @@ export function useGameSocket(): void {
         if (me.nickname) {
           useGameStore.getState().setNickname(me.nickname);
         }
+        if (me.classical) {
+          useGameStore.getState().setClassicalRating({
+            title: me.classical.title,
+            rating: me.classical.rating,
+          });
+        }
       } catch {
         // Nickname chrome is best-effort; socket auth still requires nickname server-side.
       }

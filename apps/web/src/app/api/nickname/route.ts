@@ -4,7 +4,9 @@ import {
   MeResponseSchema,
   SetNicknameBodySchema,
   classifyDbError,
+  ensureClassicalRating,
   setUserNickname,
+  toClassicalRatingSnapshot,
   upsertUserByClerkId,
 } from "@dots/shared";
 import { toMeResponse } from "@/lib/me";
@@ -59,7 +61,12 @@ export async function POST(request: Request) {
       return Response.json({ error: "User not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
-    return Response.json(MeResponseSchema.parse(toMeResponse(result.user)));
+    const rating = await ensureClassicalRating(prisma, result.user.id);
+    return Response.json(
+      MeResponseSchema.parse(
+        toMeResponse(result.user, toClassicalRatingSnapshot(rating)),
+      ),
+    );
   } catch (err) {
     const classified = classifyDbError(err);
     if (classified.kind === "unavailable") {

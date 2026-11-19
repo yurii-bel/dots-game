@@ -1,5 +1,6 @@
 import type { PlayerColor } from "@dots/game-engine";
 import type { PrismaClient } from "@dots/database";
+import { applyRankedGameResult } from "./ratings.js";
 
 let persistenceEnabled: boolean | null = null;
 let prisma: PrismaClient | null = null;
@@ -38,6 +39,8 @@ async function canPersist(): Promise<boolean> {
 export async function persistGameCreated(input: {
   gameId: string;
   roomCode: string | null;
+  /** Find-match = ranked; private rooms = false in v1. */
+  ranked?: boolean;
   status: "waiting" | "in_progress";
   ruleset: string;
   rulesetVersion: string;
@@ -54,6 +57,7 @@ export async function persistGameCreated(input: {
       data: {
         id: input.gameId,
         roomCode: input.roomCode,
+        ranked: input.ranked ?? false,
         status: input.status,
         ruleset: input.ruleset,
         rulesetVersion: input.rulesetVersion,
@@ -148,6 +152,10 @@ export async function persistGameFinished(input: {
   winner: PlayerColor | null;
   reason: string;
   version: number;
+  /** When true, apply Classical Elo (Find-match). */
+  ranked?: boolean;
+  blueUserId?: string;
+  redUserId?: string;
 }): Promise<void> {
   if (!(await canPersist()) || !prisma) return;
   try {
@@ -162,5 +170,27 @@ export async function persistGameFinished(input: {
     });
   } catch (err) {
     console.warn("[persist] finish game failed", err);
+    return;
+  }
+
+  try {
+    const outcome = await applyRankedGameResult(prisma, {
+      gameId: input.gameId,
+      ranked: input.ranked ?? false,
+      winner: input.winner,
+      blueUserId: input.blueUserId ?? "",
+      redUserId: input.redUserId ?? "",
+    });
+    if (outcome.kind === "applied") {
+      console.info(
+        "[persist] ranked Elo applied",
+        input.gameId,
+        `blue ${outcome.blue.before}→${outcome.blue.after}`,
+        `red ${outcome.red.before}→${outcome.red.after}`,
+        `trade=${outcome.tradeFactor}`,
+      );
+    }
+  } catch (err) {
+    console.warn("[persist] ranked Elo apply failed", err);
   }
 }

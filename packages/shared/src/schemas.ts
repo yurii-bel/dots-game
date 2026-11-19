@@ -16,6 +16,8 @@ export {
 export {
   NicknameSchema,
   SetNicknameBodySchema,
+  ClassicalTitleSchema,
+  ClassicalRatingSchema,
   MeResponseSchema,
   normalizeNickname,
   NICKNAME_MIN_LENGTH,
@@ -23,5 +25,6 @@ export {
   NICKNAME_PATTERN,
   type Nickname,
   type SetNicknameBody,
+  type ClassicalRating,
   type MeResponse,
 } from "./nickname";

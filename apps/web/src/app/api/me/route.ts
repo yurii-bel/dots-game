@@ -3,6 +3,8 @@ import { prisma } from "@dots/database";
 import {
   MeResponseSchema,
   classifyDbError,
+  ensureClassicalRating,
+  toClassicalRatingSnapshot,
   upsertUserByClerkId,
 } from "@dots/shared";
 import { toMeResponse } from "@/lib/me";
@@ -27,7 +29,10 @@ export async function GET() {
       null;
 
     const user = await upsertUserByClerkId(prisma, { clerkId, email });
-    const body = MeResponseSchema.parse(toMeResponse(user));
+    const rating = await ensureClassicalRating(prisma, user.id);
+    const body = MeResponseSchema.parse(
+      toMeResponse(user, toClassicalRatingSnapshot(rating)),
+    );
     return Response.json(body);
   } catch (err) {
     const classified = classifyDbError(err);

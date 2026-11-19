@@ -30,6 +30,27 @@ export const SetNicknameBodySchema = z.object({
 });
 export type SetNicknameBody = z.infer<typeof SetNicknameBodySchema>;
 
+export const ClassicalTitleSchema = z.enum([
+  "N",
+  "3",
+  "2",
+  "1",
+  "C",
+  "M",
+  "H",
+  "G",
+]);
+
+/** Classical rating snapshot for lobby chip / profile (pool: classical). */
+export const ClassicalRatingSchema = z.object({
+  rating: z.number().int().min(100),
+  title: ClassicalTitleSchema,
+  gamesPlayed: z.number().int().nonnegative(),
+  /** True after 5 ranked games and activity within 365 days. */
+  leaderboardVisible: z.boolean(),
+});
+export type ClassicalRating = z.infer<typeof ClassicalRatingSchema>;
+
 export const MeResponseSchema = z.object({
   id: z.string().min(1),
   clerkId: z.string().min(1),
@@ -37,5 +58,6 @@ export const MeResponseSchema = z.object({
   nickname: z.string().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  classical: ClassicalRatingSchema,
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;

@@ -227,6 +227,7 @@ export class GameRoomRegistry {
     void persistGameCreated({
       gameId: id,
       roomCode: code,
+      ranked: false,
       status: "waiting",
       ruleset: "classic",
       rulesetVersion: "2017.1",
@@ -374,6 +375,7 @@ export class GameRoomRegistry {
     void persistGameCreated({
       gameId: id,
       roomCode: null,
+      ranked: true,
       status: "in_progress",
       ruleset: "classic",
       rulesetVersion: "2017.1",
@@ -428,6 +430,19 @@ export class GameRoomRegistry {
       game.finishedAt = Date.now();
     }
     game.turnClockStartedAt = null;
+  }
+
+  /** Fields for persistGameFinished + Classical Elo (matchmaking only). */
+  private finishPersistFields(game: ActiveGame): {
+    ranked: boolean;
+    blueUserId?: string;
+    redUserId?: string;
+  } {
+    return {
+      ranked: game.mode === "matchmaking",
+      blueUserId: game.seats.blue?.userId,
+      redUserId: game.seats.red?.userId,
+    };
   }
 
   /**
@@ -486,6 +501,7 @@ export class GameRoomRegistry {
       winner,
       reason: "timeout",
       version: game.engine.moveNumber,
+      ...this.finishPersistFields(game),
     });
 
     return game;
@@ -742,6 +758,7 @@ export class GameRoomRegistry {
         winner: game.winner,
         reason: game.finishedReason ?? "board_full",
         version: result.game.moveNumber,
+        ...this.finishPersistFields(game),
       });
     } else if (game.clocks) {
       // Next player's turn: refill their turn bank; keep mains.
@@ -799,6 +816,7 @@ export class GameRoomRegistry {
       winner,
       reason: "resign",
       version: game.engine.moveNumber,
+      ...this.finishPersistFields(game),
     });
 
     return game;
@@ -824,6 +842,7 @@ export class GameRoomRegistry {
       winner: game.winner,
       reason: "landing",
       version: result.game.moveNumber,
+      ...this.finishPersistFields(game),
     });
 
     return game;

@@ -1,6 +1,9 @@
-import type { MeResponse, UserRecord } from "@dots/shared";
+import type { ClassicalRating, MeResponse, UserRecord } from "@dots/shared";
 
-export function toMeResponse(user: UserRecord): MeResponse {
+export function toMeResponse(
+  user: UserRecord,
+  classical: ClassicalRating,
+): MeResponse {
   return {
     id: user.id,
     clerkId: user.clerkId,
@@ -8,5 +11,6 @@ export function toMeResponse(user: UserRecord): MeResponse {
     nickname: user.nickname,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
+    classical,
   };
 }

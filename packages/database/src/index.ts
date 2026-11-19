@@ -36,5 +36,7 @@ export type {
   Move,
   PlayerColor,
   Prisma,
+  RankedResult,
+  Rating,
   User,
 } from "@prisma/client";
