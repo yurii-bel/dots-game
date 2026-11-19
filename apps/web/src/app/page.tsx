@@ -53,6 +53,25 @@ export default function LandingPage() {
           <UserButton />
         </div>
       </Show>
+
+      <nav
+        className="flex animate-[match-desk-in_420ms_ease-out_both] gap-4 text-sm"
+        style={{ animationDelay: "140ms" }}
+        aria-label="Public links"
+      >
+        <Link
+          href="/leaderboard"
+          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          Leaderboard
+        </Link>
+        <Link
+          href="/faq"
+          className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          Rating FAQ
+        </Link>
+      </nav>
     </main>
   );
 }

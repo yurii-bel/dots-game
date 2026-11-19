@@ -19,6 +19,8 @@ export {
   ClassicalTitleSchema,
   ClassicalRatingSchema,
   MeResponseSchema,
+  LeaderboardEntrySchema,
+  LeaderboardResponseSchema,
   normalizeNickname,
   NICKNAME_MIN_LENGTH,
   NICKNAME_MAX_LENGTH,
@@ -27,4 +29,6 @@ export {
   type SetNicknameBody,
   type ClassicalRating,
   type MeResponse,
+  type LeaderboardEntry,
+  type LeaderboardResponse,
 } from "./nickname";

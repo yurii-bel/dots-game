@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { APP_NAME } from "@dots/shared";
+import { APP_NAME, PLACEMENT_GAMES } from "@dots/shared";
+import { ClassicalTitleBadge } from "@/components/game/ClassicalTitleBadge";
 import { DualDotSpinner } from "@/components/game/DualDotSpinner";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,13 +72,34 @@ export function Lobby() {
   const nickname = useGameStore((s) => s.nickname);
   const classicalTitle = useGameStore((s) => s.classicalTitle);
   const classicalRating = useGameStore((s) => s.classicalRating);
+  const classicalGamesPlayed = useGameStore((s) => s.classicalGamesPlayed);
+  const classicalLeaderboardVisible = useGameStore(
+    (s) => s.classicalLeaderboardVisible,
+  );
   const userId = useGameStore((s) => s.userId);
   const [joinCode, setJoinCode] = useState("");
   const [savedSession, setSavedSession] = useState<ActiveGameSession | null>(null);
+  const [titlePulse, setTitlePulse] = useState(false);
 
   useEffect(() => {
     setSavedSession(loadActiveGame(userId));
   }, [userId]);
+
+  // Soft pulse once when a non-N title first lands in this session.
+  useEffect(() => {
+    if (!classicalTitle || classicalTitle === "N") return;
+    const key = "dots.classicalTitleSeen";
+    try {
+      const seen = sessionStorage.getItem(key);
+      if (seen === classicalTitle) return;
+      sessionStorage.setItem(key, classicalTitle);
+      setTitlePulse(true);
+      const t = window.setTimeout(() => setTitlePulse(false), 800);
+      return () => window.clearTimeout(t);
+    } catch {
+      // sessionStorage unavailable — skip pulse.
+    }
+  }, [classicalTitle]);
 
   // After create / join / match found — enter the game route (not a blind remount redirect).
   useEffect(() => {
@@ -96,6 +119,10 @@ export function Lobby() {
     connection === "matchmaking" || connection === "waiting" || connection === "playing";
   const tone = socketTone(connection);
   const statusText = `${socketLabel(connection)} · ${getSocketUrl()}`;
+  const placementGamesLeft =
+    classicalGamesPlayed == null
+      ? null
+      : Math.max(0, PLACEMENT_GAMES - classicalGamesPlayed);
 
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-md flex-col items-center px-6 pb-16 pt-20 sm:pt-24">
@@ -110,41 +137,46 @@ export function Lobby() {
           </p>
         </header>
 
-        {/* Identity chip — Classical title · Elo from /api/me */}
+        {/* Identity chip — Classical title letter · Elo from /api/me */}
         <div
-          className="flex animate-[match-desk-in_420ms_ease-out_both] items-center gap-2.5 rounded-md border border-border/70 bg-background/70 px-3 py-2 shadow-[0_1px_0_hsl(210_14%_86%/0.6)] backdrop-blur-sm"
+          className="flex animate-[match-desk-in_420ms_ease-out_both] flex-col items-center gap-2"
           style={{ animationDelay: "60ms" }}
         >
-          <div className="flex min-w-0 items-center gap-2 text-sm">
-            <span className="truncate font-medium text-foreground">
-              {nickname ?? "—"}
-            </span>
-            <span className="text-muted-foreground/50" aria-hidden>
-              ·
-            </span>
-            <span
-              className="tabular-nums text-muted-foreground"
-              title="Classical title"
-            >
-              {classicalTitle ?? "—"}
-            </span>
-            <span className="text-muted-foreground/50" aria-hidden>
-              ·
-            </span>
-            <span
-              className="tabular-nums text-muted-foreground"
-              title="Classical rating"
-            >
-              {classicalRating ?? "—"}
-            </span>
+          <div className="flex items-center gap-2.5 rounded-md border border-border/70 bg-background/70 px-3 py-2 shadow-[0_1px_0_hsl(210_14%_86%/0.6)] backdrop-blur-sm">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <span className="truncate font-medium text-foreground">
+                {nickname ?? "—"}
+              </span>
+              <span className="text-muted-foreground/50" aria-hidden>
+                ·
+              </span>
+              <ClassicalTitleBadge title={classicalTitle} pulse={titlePulse} />
+              <span className="text-muted-foreground/50" aria-hidden>
+                ·
+              </span>
+              <span
+                className="tabular-nums text-muted-foreground"
+                title="Classical rating"
+              >
+                {classicalRating ?? "—"}
+              </span>
+            </div>
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "size-7",
+                },
+              }}
+            />
           </div>
-          <UserButton
-            appearance={{
-              elements: {
-                avatarBox: "size-7",
-              },
-            }}
-          />
+          {classicalLeaderboardVisible === false &&
+          placementGamesLeft != null &&
+          placementGamesLeft > 0 ? (
+            <p className="text-center text-[11px] text-muted-foreground">
+              {placementGamesLeft} more ranked game
+              {placementGamesLeft === 1 ? "" : "s"} to join the public board
+            </p>
+          ) : null}
         </div>
 
         {hasResume ? (
@@ -255,6 +287,25 @@ export function Lobby() {
             {lastError}
           </p>
         ) : null}
+
+        <nav
+          className="flex animate-[match-desk-in_420ms_ease-out_both] gap-4 text-sm"
+          style={{ animationDelay: "160ms" }}
+          aria-label="Lobby links"
+        >
+          <Link
+            href="/leaderboard"
+            className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Leaderboard
+          </Link>
+          <Link
+            href="/faq"
+            className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Rating FAQ
+          </Link>
+        </nav>
       </div>
 
       {/* Slim socket status */}

@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ClassicalTitleBadge } from "@/components/game/ClassicalTitleBadge";
 import { GameTimer } from "@/components/game/GameTimer";
 import {
   declareLandingGame,
@@ -26,6 +28,8 @@ export function GameChrome() {
   const finishedMessage = useGameStore((s) => s.finishedMessage);
   const pending = useGameStore((s) => s.pending);
   const nickname = useGameStore((s) => s.nickname);
+  const classicalTitle = useGameStore((s) => s.classicalTitle);
+  const classicalRating = useGameStore((s) => s.classicalRating);
   const [sfxMuted, setSfxMutedUi] = useState(false);
 
   useEffect(() => {
@@ -49,7 +53,18 @@ export function GameChrome() {
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">DOTS · 1v1</p>
           {nickname ? (
-            <span className="text-xs text-muted-foreground">{nickname}</span>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span>{nickname}</span>
+              <ClassicalTitleBadge
+                title={classicalTitle}
+                className="size-5 text-[10px]"
+              />
+              {classicalRating != null ? (
+                <span className="tabular-nums" title="Classical rating">
+                  {classicalRating}
+                </span>
+              ) : null}
+            </span>
           ) : null}
           {yourColor ? (
             <span className="text-xs text-muted-foreground">
@@ -99,6 +114,9 @@ export function GameChrome() {
               </Button>
             </>
           ) : null}
+          <Button type="button" variant="ghost" size="sm" asChild>
+            <Link href="/faq">FAQ</Link>
+          </Button>
           <Button
             type="button"
             variant="ghost"

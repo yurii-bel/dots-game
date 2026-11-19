@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  classicalTitleLabel,
   expectedScore,
   isLeaderboardVisible,
   kFactor,
@@ -53,6 +54,11 @@ describe("titles", () => {
     expect(titleForRating(2100)).toBe("M");
     expect(titleForRating(2300)).toBe("H");
     expect(titleForRating(2500)).toBe("G");
+  });
+
+  it("exposes short player-facing labels", () => {
+    expect(classicalTitleLabel("G")).toBe("Grandmaster");
+    expect(classicalTitleLabel("N")).toBe("Novice");
   });
 
   it("never demotes a permanent title", () => {

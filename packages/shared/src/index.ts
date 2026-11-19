@@ -6,6 +6,8 @@ export {
   ClassicalTitleSchema,
   ClassicalRatingSchema,
   MeResponseSchema,
+  LeaderboardEntrySchema,
+  LeaderboardResponseSchema,
   normalizeNickname,
   NICKNAME_MIN_LENGTH,
   NICKNAME_MAX_LENGTH,
@@ -16,6 +18,8 @@ export {
   type SetNicknameBody,
   type ClassicalRating,
   type MeResponse,
+  type LeaderboardEntry,
+  type LeaderboardResponse,
 } from "./schemas";
 
 export {
@@ -29,6 +33,8 @@ export {
   WIN_TRADE_WINDOW_MS,
   CLASSICAL_TITLES,
   CLASSICAL_TITLE_THRESHOLDS,
+  CLASSICAL_TITLE_LABELS,
+  classicalTitleLabel,
   roundHalfUp,
   expectedScore,
   kFactor,
@@ -74,8 +80,12 @@ export {
 export {
   ensureClassicalRating,
   toClassicalRatingSnapshot,
+  listClassicalLeaderboard,
+  DEFAULT_LEADERBOARD_LIMIT,
   type RatingRecord,
   type RatingClient,
+  type LeaderboardClient,
+  type LeaderboardRow,
 } from "./ratings";
 
 export {
