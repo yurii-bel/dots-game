@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
 import { APP_NAME } from "@dots/shared";
+import { DualDotSpinner } from "@/components/game/DualDotSpinner";
 import { Button } from "@/components/ui/button";
 import {
   cancelMatchmaking,
@@ -114,9 +115,15 @@ export function Lobby() {
 
       <div className="flex flex-col gap-3">
         {connection === "matchmaking" ? (
-          <Button type="button" variant="outline" onClick={() => cancelMatchmaking()}>
-            Cancel matchmaking…
-          </Button>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2.5">
+              <DualDotSpinner label="Finding match" />
+              <span className="text-sm text-muted-foreground">Finding match…</span>
+            </div>
+            <Button type="button" variant="outline" onClick={() => cancelMatchmaking()}>
+              Cancel
+            </Button>
+          </div>
         ) : (
           <Button type="button" onClick={() => findMatch()} disabled={hasResume || busy}>
             Find match

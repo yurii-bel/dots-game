@@ -56,3 +56,10 @@ body {
   color: hsl(var(--foreground));
   min-height: 100vh;
 }
+
+/* Matchmaking dual-dot spinner — red+blue stones orbit a shared center. */
+@keyframes dual-dot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
