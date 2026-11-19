@@ -22,6 +22,9 @@ export function GameView() {
   const pending = useGameStore((s) => s.pending);
   const lastMove = useGameStore((s) => s.lastMove);
   const connection = useGameStore((s) => s.connection);
+  const finishedReason = useGameStore((s) => s.finishedReason);
+  const finishedAt = useGameStore((s) => s.finishedAt);
+  const gameId = useGameStore((s) => s.gameId);
 
   // Unlock audio on first gesture so opponent moves can play under autoplay rules.
   useEffect(() => {
@@ -53,6 +56,12 @@ export function GameView() {
           pending={pending}
           lastMove={lastMove}
           onPlace={(x, y) => submitMove(x, y)}
+          animateLandingReveal={finishedReason === "landing"}
+          landingRevealKey={
+            finishedReason === "landing" && gameId
+              ? `${gameId}:${finishedAt ?? "landing"}`
+              : null
+          }
         />
       </div>
     </div>

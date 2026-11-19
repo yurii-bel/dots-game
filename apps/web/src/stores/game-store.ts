@@ -3,11 +3,14 @@
 import { create } from "zustand";
 import type {
   GameClocks,
+  GameFinishedPayload,
   GameMoveAcceptedPayload,
   GameMoveRejectedPayload,
   PlayerColor,
   WireGameState,
 } from "@dots/shared";
+
+export type FinishedReason = GameFinishedPayload["reason"];
 
 export type ConnectionStatus =
   | "idle"
@@ -59,6 +62,8 @@ type GameStore = {
   opponentConnected: boolean;
   lastError: string | null;
   finishedMessage: string | null;
+  /** Why the game ended; set from `game:finished` (client UI only). */
+  finishedReason: FinishedReason | null;
   /** Server epoch ms when play began; null while waiting. */
   startedAt: number | null;
   /** Server epoch ms when finished; null until then. */
@@ -92,7 +97,12 @@ type GameStore = {
   rejectMove: (payload: GameMoveRejectedPayload) => void;
   setOpponentConnected: (connected: boolean) => void;
   setError: (message: string | null) => void;
-  setFinished: (message: string, state: WireGameState, timing?: TimingInput) => void;
+  setFinished: (
+    message: string,
+    state: WireGameState,
+    timing?: TimingInput,
+    reason?: FinishedReason | null,
+  ) => void;
   resetMatch: () => void;
 };
 
@@ -144,6 +154,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   opponentConnected: true,
   lastError: null,
   finishedMessage: null,
+  finishedReason: null,
   startedAt: null,
   finishedAt: null,
   clocks: null,
@@ -165,6 +176,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       connection: "waiting",
       lastError: null,
       finishedMessage: null,
+      finishedReason: null,
       startedAt: null,
       finishedAt: null,
       clocks: null,
@@ -190,6 +202,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastMove: null,
       lastError: null,
       finishedMessage: null,
+      finishedReason: null,
       opponentConnected: true,
       ...nextTiming(get(), { startedAt, finishedAt, clocks }),
     }),
@@ -252,9 +265,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setError: (lastError) =>
     set({ lastError, connection: lastError ? "error" : get().connection }),
 
-  setFinished: (finishedMessage, state, timing) =>
+  setFinished: (finishedMessage, state, timing, reason = null) =>
     set({
       finishedMessage,
+      finishedReason: reason ?? null,
       state,
       connection: "finished",
       pending: null,
@@ -274,6 +288,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       opponentConnected: true,
       lastError: null,
       finishedMessage: null,
+      finishedReason: null,
       startedAt: null,
       finishedAt: null,
       clocks: null,

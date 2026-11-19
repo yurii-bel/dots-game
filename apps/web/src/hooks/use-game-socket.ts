@@ -221,13 +221,18 @@ export function useGameSocket(): void {
     };
 
     const onFinished = (payload: GameFinishedPayload) => {
-      useGameStore.getState().setFinished(finishedLabel(payload), payload.state, {
-        startedAt: payload.startedAt,
-        finishedAt: payload.finishedAt,
-        clocks: payload.clocks
-          ? { ...payload.clocks, activeColor: null }
-          : payload.clocks,
-      });
+      useGameStore.getState().setFinished(
+        finishedLabel(payload),
+        payload.state,
+        {
+          startedAt: payload.startedAt,
+          finishedAt: payload.finishedAt,
+          clocks: payload.clocks
+            ? { ...payload.clocks, activeColor: null }
+            : payload.clocks,
+        },
+        payload.reason,
+      );
       clearActiveGame(activeUserId());
     };
 

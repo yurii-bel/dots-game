@@ -1,3 +1,4 @@
+import { buildHalfCellRingsForIndices } from "@dots/game-engine";
 import type { PlayerColor, WireBoard, WireCell } from "@dots/shared";
 import { computeLayout, formalToCanvas, type BoardLayout } from "./board-geometry";
 import { buildTerritoryPaths } from "./territory-paths";
@@ -134,11 +135,134 @@ export type DrawOptions = {
   pending: { x: number; y: number; color: PlayerColor } | null;
   lastMove: LastMoveHighlight | null;
   dpr: number;
+  /**
+   * Client-only Declare-grounding reveal: opacity 0…1 for newly captured cells.
+   * Settled territories draw at full opacity; these cells fade in as half-cell
+   * fills on the same canvas (no camera/layout change).
+   */
+  captureReveal?: ReadonlyMap<number, number> | null;
 };
+
+/** Strip revealing captures so settled territory paths stay put during fade-in. */
+export function boardWithoutRevealingCaptures(
+  board: WireBoard,
+  revealing: ReadonlySet<number>,
+): WireBoard {
+  if (revealing.size === 0 || board.cells.length === 0) return board;
+  return {
+    ...board,
+    cells: board.cells.map((cell, index) =>
+      revealing.has(index) && cell.capturedBy !== null
+        ? { ...cell, capturedBy: null }
+        : cell,
+    ),
+  };
+}
+
+function strokeRing(
+  ctx: CanvasRenderingContext2D,
+  layout: BoardLayout,
+  board: Pick<WireBoard, "width" | "height">,
+  ring: { x: number; y: number }[],
+): void {
+  ring.forEach((p, i) => {
+    const { cx, cy } = formalToCanvas(layout, board, p.x, p.y);
+    if (i === 0) ctx.moveTo(cx, cy);
+    else ctx.lineTo(cx, cy);
+  });
+  ctx.closePath();
+}
+
+function drawTerritoryRegions(
+  ctx: CanvasRenderingContext2D,
+  board: WireBoard,
+  layout: BoardLayout,
+  cell: number,
+): void {
+  const territories = buildTerritoryPaths(board);
+  const strokeW = territoryStrokeWidth(cell);
+
+  for (const region of territories) {
+    if (region.rings.length === 0) continue;
+    ctx.beginPath();
+    for (const ring of region.rings) {
+      if (ring.length < 3) continue;
+      strokeRing(ctx, layout, board, ring);
+    }
+    ctx.fillStyle =
+      region.color === "blue" ? COLORS.blueTerritory : COLORS.redTerritory;
+    ctx.fill("evenodd");
+  }
+
+  for (const region of territories) {
+    for (const ring of region.rings) {
+      if (ring.length < 3) continue;
+      ctx.beginPath();
+      strokeRing(ctx, layout, board, ring);
+      ctx.strokeStyle = region.color === "blue" ? COLORS.blue : COLORS.red;
+      ctx.lineWidth = strokeW;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.stroke();
+    }
+  }
+}
+
+/** Per-cell half-cell fills for staggered §8.4 forfeit reveal. */
+function drawRevealingCaptures(
+  ctx: CanvasRenderingContext2D,
+  board: WireBoard,
+  layout: BoardLayout,
+  cell: number,
+  captureReveal: ReadonlyMap<number, number>,
+): void {
+  const strokeW = territoryStrokeWidth(cell);
+  const geom = { width: board.width, height: board.height };
+
+  for (const [index, opacity] of captureReveal) {
+    if (opacity <= 0) continue;
+    const owner = board.cells[index]?.capturedBy;
+    if (!owner) continue;
+    const rings = buildHalfCellRingsForIndices(geom, [index]);
+    if (rings.length === 0) continue;
+
+    ctx.save();
+    ctx.globalAlpha = opacity;
+    ctx.beginPath();
+    for (const ring of rings) {
+      if (ring.length < 3) continue;
+      strokeRing(ctx, layout, board, ring);
+    }
+    ctx.fillStyle =
+      owner === "blue" ? COLORS.blueTerritory : COLORS.redTerritory;
+    ctx.fill("evenodd");
+
+    for (const ring of rings) {
+      if (ring.length < 3) continue;
+      ctx.beginPath();
+      strokeRing(ctx, layout, board, ring);
+      ctx.strokeStyle = owner === "blue" ? COLORS.blue : COLORS.red;
+      ctx.lineWidth = strokeW;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
 
 export function drawBoard(
   ctx: CanvasRenderingContext2D,
-  { board, layout, hover, yourColor, pending, lastMove, dpr }: DrawOptions,
+  {
+    board,
+    layout,
+    hover,
+    yourColor,
+    pending,
+    lastMove,
+    dpr,
+    captureReveal = null,
+  }: DrawOptions,
 ): void {
   const { cssWidth, cssHeight, cell } = layout;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -174,44 +298,18 @@ export function drawBoard(
   // Tensu-style axis labels: X 1…width bottom, Y 1…height left (Y-up)
   drawAxisLabels(ctx, board, layout);
 
-  // Captured territories — R1 hybrid rings (wall centers or half-cell); even-odd holes
+  // Captured territories — R1 hybrid; optional staggered reveal for new §8.4 fills
   if (board.cells.length > 0) {
-    const territories = buildTerritoryPaths(board);
-    const strokeW = territoryStrokeWidth(cell);
-
-    for (const region of territories) {
-      if (region.rings.length === 0) continue;
-      ctx.beginPath();
-      for (const ring of region.rings) {
-        if (ring.length < 3) continue;
-        ring.forEach((p, i) => {
-          const { cx, cy } = formalToCanvas(layout, board, p.x, p.y);
-          if (i === 0) ctx.moveTo(cx, cy);
-          else ctx.lineTo(cx, cy);
-        });
-        ctx.closePath();
-      }
-      ctx.fillStyle =
-        region.color === "blue" ? COLORS.blueTerritory : COLORS.redTerritory;
-      ctx.fill("evenodd");
-    }
-
-    for (const region of territories) {
-      for (const ring of region.rings) {
-        if (ring.length < 3) continue;
-        ctx.beginPath();
-        ring.forEach((p, i) => {
-          const { cx, cy } = formalToCanvas(layout, board, p.x, p.y);
-          if (i === 0) ctx.moveTo(cx, cy);
-          else ctx.lineTo(cx, cy);
-        });
-        ctx.closePath();
-        ctx.strokeStyle = region.color === "blue" ? COLORS.blue : COLORS.red;
-        ctx.lineWidth = strokeW;
-        ctx.lineJoin = "round";
-        ctx.lineCap = "round";
-        ctx.stroke();
-      }
+    const revealing =
+      captureReveal && captureReveal.size > 0
+        ? new Set(captureReveal.keys())
+        : null;
+    const settledBoard = revealing
+      ? boardWithoutRevealingCaptures(board, revealing)
+      : board;
+    drawTerritoryRegions(ctx, settledBoard, layout, cell);
+    if (captureReveal && captureReveal.size > 0) {
+      drawRevealingCaptures(ctx, board, layout, cell, captureReveal);
     }
   }
 
