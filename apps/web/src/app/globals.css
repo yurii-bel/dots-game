@@ -50,8 +50,9 @@
 
 body {
   background:
-    radial-gradient(ellipse 80% 50% at 20% 0%, hsl(210 40% 90% / 0.7), transparent),
-    radial-gradient(ellipse 60% 40% at 100% 10%, hsl(160 30% 88% / 0.5), transparent),
+    radial-gradient(ellipse 90% 55% at 50% -10%, hsl(210 35% 91% / 0.85), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 0% 80%, hsl(160 28% 90% / 0.45), transparent 50%),
+    radial-gradient(ellipse 50% 35% at 100% 70%, hsl(210 25% 92% / 0.4), transparent 45%),
     hsl(var(--background));
   color: hsl(var(--foreground));
   min-height: 100vh;
@@ -61,5 +62,17 @@ body {
 @keyframes dual-dot-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Match desk lobby — soft enter for brand / chip / actions. */
+@keyframes match-desk-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
