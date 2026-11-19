@@ -36,6 +36,34 @@ function authUser(socket: Socket): SocketAuthUser {
   return (socket as AuthedSocket).data.user;
 }
 
+/** All connected sockets whose handshake resolved to this Prisma userId. */
+function socketsForUser(io: Server, userId: string): Socket[] {
+  const out: Socket[] = [];
+  for (const s of io.sockets.sockets.values()) {
+    const user = (s as AuthedSocket).data?.user;
+    if (user?.userId === userId) out.push(s);
+  }
+  return out;
+}
+
+/**
+ * Prefer live sockets for userId; fall back to the queued socketId when still
+ * connected. Updates seat.socketId to a live id when found.
+ */
+function resolveSeatTargets(
+  io: Server,
+  userId: string,
+  queuedSocketId: string | null,
+): Socket[] {
+  const live = socketsForUser(io, userId);
+  if (live.length > 0) return live;
+  if (queuedSocketId) {
+    const queued = io.sockets.sockets.get(queuedSocketId);
+    if (queued) return [queued];
+  }
+  return [];
+}
+
 function broadcastFinished(io: Server, game: ActiveGame): void {
   const state = rooms.wire(game);
   if (!state || !game.finishedReason) return;
@@ -105,14 +133,38 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
     const user = authUser(socket);
     const existing = rooms.findByUser(user.userId);
     if (existing && existing.status !== "finished") {
+      // Already in a live game — reattach; do not touch the matchmaking queue.
+      matchmakingQueue.remove(user.userId);
       const color = rooms.attachSocketByUser(existing, user.userId, socket.id);
       joinSocketRoom(socket, existing.id);
       const state = rooms.wire(existing);
+      const timing = timingFields(existing);
       if (state && color) {
+        socket.emit(SocketEvents.matchmakingFound, {
+          gameId: existing.id,
+          color,
+          state,
+          ...timing,
+        });
+        socket.emit(SocketEvents.gameStarted, {
+          gameId: existing.id,
+          color,
+          state,
+          roomCode: existing.roomCode ?? undefined,
+          ...timing,
+        });
         socket.emit(SocketEvents.gameState, {
           state,
           yourColor: color,
-          ...timingFields(existing),
+          ...timing,
+        });
+      } else if (color && existing.status === "waiting") {
+        socket.emit(SocketEvents.gameStarted, {
+          gameId: existing.id,
+          color,
+          roomCode: existing.roomCode ?? undefined,
+          state: rooms.waitingPlaceholder(existing),
+          ...timing,
         });
       }
       return;
@@ -124,19 +176,25 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       socketId: socket.id,
     });
 
-    if (!result.paired) return;
+    if (result.kind === "already_queued" || result.kind === "enqueued") {
+      // Quiet success — client stays on "Finding match…"; clear prior errors client-side.
+      return;
+    }
+
+    const blueSocketId = result.blue.socketId;
+    const redSocketId = result.red.socketId;
 
     void rooms
       .createMatchmakingGame({
         blue: {
           userId: result.blue.userId,
           nickname: result.blue.nickname,
-          socketId: result.blue.socketId,
+          socketId: blueSocketId,
         },
         red: {
           userId: result.red.userId,
           nickname: result.red.nickname,
-          socketId: result.red.socketId,
+          socketId: redSocketId,
         },
       })
       .then((game) => {
@@ -144,26 +202,46 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
         const timing = timingFields(game);
         for (const color of ["blue", "red"] as const) {
           const seat = game.seats[color]!;
-          const target = io.sockets.sockets.get(seat.socketId ?? "");
-          if (!target) continue;
-          joinSocketRoom(target, game.id);
-          target.emit(SocketEvents.matchmakingFound, {
-            gameId: game.id,
-            color,
-            state,
-            ...timing,
-          });
-          target.emit(SocketEvents.gameStarted, {
-            gameId: game.id,
-            color,
-            state,
-            ...timing,
-          });
-          target.emit(SocketEvents.gameState, { state, yourColor: color, ...timing });
+          const queuedId = color === "blue" ? blueSocketId : redSocketId;
+          const targets = resolveSeatTargets(io, seat.userId, queuedId);
+          if (targets.length === 0) continue;
+          // Prefer the first live socket as the canonical seat binding.
+          rooms.attachSocketByUser(game, seat.userId, targets[0]!.id);
+          for (const target of targets) {
+            joinSocketRoom(target, game.id);
+            target.emit(SocketEvents.matchmakingFound, {
+              gameId: game.id,
+              color,
+              state,
+              ...timing,
+            });
+            target.emit(SocketEvents.gameStarted, {
+              gameId: game.id,
+              color,
+              state,
+              ...timing,
+            });
+            target.emit(SocketEvents.gameState, {
+              state,
+              yourColor: color,
+              ...timing,
+            });
+          }
         }
       })
       .catch((err: unknown) => {
         console.error("[matchmaking] failed to create game", err);
+        // Put both back without pairing them against each other.
+        matchmakingQueue.putBack({
+          userId: result.blue.userId,
+          nickname: result.blue.nickname,
+          socketId: blueSocketId,
+        });
+        matchmakingQueue.putBack({
+          userId: result.red.userId,
+          nickname: result.red.nickname,
+          socketId: redSocketId,
+        });
         emitError(socket, { code: "INTERNAL", message: "Failed to create match" });
       });
   });
@@ -211,9 +289,10 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
       })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : "create failed";
+        const code = message === "ALREADY_IN_GAME" ? "ALREADY_IN_GAME" : "INTERNAL";
         emitError(socket, {
-          code: "INTERNAL",
-          message,
+          code,
+          message: code === "ALREADY_IN_GAME" ? "Already in a game" : message,
         });
       });
   });
@@ -283,8 +362,17 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
               ? "ROOM_FULL"
               : message === "GAME_NOT_IN_PROGRESS"
                 ? "GAME_NOT_IN_PROGRESS"
-                : "INTERNAL";
-        emitError(socket, { code, message });
+                : message === "ALREADY_IN_GAME"
+                  ? "ALREADY_IN_GAME"
+                  : "INTERNAL";
+        emitError(socket, {
+          code,
+          message:
+            message === "ALREADY_IN_GAME" ? "Already in a game" : message,
+          ...(code === "GAME_NOT_FOUND"
+            ? { gameId: parsed.data.gameId }
+            : {}),
+        });
       });
   });
 
@@ -298,7 +386,11 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
     const user = authUser(socket);
     const game = rooms.get(parsed.data.gameId) ?? rooms.findByRoomCode(parsed.data.gameId);
     if (!game) {
-      emitError(socket, { code: "GAME_NOT_FOUND", message: "Game not found" });
+      emitError(socket, {
+        code: "GAME_NOT_FOUND",
+        message: "Game not found",
+        gameId: parsed.data.gameId,
+      });
       return;
     }
 
@@ -505,7 +597,9 @@ export function registerSocketHandlers(io: Server, socket: Socket): void {
   });
 
   socket.on("disconnect", () => {
-    matchmakingQueue.removeBySocket(socket.id);
+    // Keep the queue seat; only clear this socket binding so a later opponent
+    // can still pair and so reconnect can refresh the same userId seat.
+    matchmakingQueue.clearSocket(socket.id);
     const left = rooms.markDisconnected(socket.id);
     if (!left) return;
 

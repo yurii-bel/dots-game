@@ -17,6 +17,7 @@ import {
 import { getSocket, resetSocket, setSocketTokenProvider } from "@/lib/socket";
 import {
   clearActiveGame,
+  clearForeignActiveGame,
   loadActiveGame,
   saveActiveGame,
 } from "@/lib/player-id";
@@ -49,13 +50,32 @@ function finishedLabel(payload: GameFinishedPayload): string {
   return "Game finished.";
 }
 
+function activeUserId(): string | null {
+  return useGameStore.getState().userId;
+}
+
 /** Wire Socket.IO ↔ Zustand for lobby + play + reconnect (Clerk JWT auth). */
 export function useGameSocket(): void {
-  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const { getToken, isLoaded, isSignedIn, userId: clerkUserId } = useAuth();
   const bound = useRef(false);
+  const lastClerkUserId = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
+
+    // Account switch (another tab signed into a different Clerk user): drop the
+    // old socket so the next connect authenticates as the new userId.
+    if (
+      lastClerkUserId.current !== undefined &&
+      lastClerkUserId.current !== clerkUserId
+    ) {
+      resetSocket();
+      useGameStore.getState().resetMatch();
+      useGameStore.getState().setUserId(null);
+      useGameStore.getState().setNickname(null);
+      bound.current = false;
+    }
+    lastClerkUserId.current = clerkUserId;
 
     setSocketTokenProvider(async () => {
       try {
@@ -71,6 +91,9 @@ export function useGameSocket(): void {
         const res = await fetch("/api/me", { credentials: "include" });
         if (!res.ok || cancelled) return;
         const me = (await res.json()) as MeResponse;
+        if (cancelled) return;
+        useGameStore.getState().setUserId(me.id);
+        clearForeignActiveGame(me.id);
         if (me.nickname) {
           useGameStore.getState().setNickname(me.nickname);
         }
@@ -83,18 +106,30 @@ export function useGameSocket(): void {
     useGameStore.getState().setConnection(socket.connected ? "connected" : "connecting");
 
     const onConnect = () => {
-      useGameStore.getState().setConnection(
-        useGameStore.getState().gameId ? useGameStore.getState().connection : "connected",
-      );
-      const { gameId } = useGameStore.getState();
-      const session = loadActiveGame();
-      const id = gameId ?? session?.gameId;
+      const store = useGameStore.getState();
+      if (!store.gameId) {
+        store.setConnection(
+          store.connection === "matchmaking" ? "matchmaking" : "connected",
+        );
+      }
+      const userId = store.userId;
+      const session = loadActiveGame(userId);
+      const id = store.gameId ?? session?.gameId;
       if (id) {
         socket.emit(SocketEvents.gameSync, { gameId: id });
+      }
+      // Re-bind queue seat after reconnect while still searching.
+      if (store.connection === "matchmaking" && !id) {
+        socket.emit(SocketEvents.matchmakingJoin, {});
       }
     };
 
     const onDisconnect = () => {
+      const conn = useGameStore.getState().connection;
+      if (conn === "matchmaking" || conn === "playing" || conn === "waiting") {
+        // Keep logical state; only note transport drop via connecting chrome when idle.
+        return;
+      }
       useGameStore.getState().setConnection("connecting");
     };
 
@@ -119,7 +154,10 @@ export function useGameSocket(): void {
         finishedAt: payload.finishedAt ?? null,
         clocks: payload.clocks ?? null,
       });
-      saveActiveGame({ gameId: payload.gameId, roomCode: payload.roomCode });
+      saveActiveGame(
+        { gameId: payload.gameId, roomCode: payload.roomCode },
+        activeUserId(),
+      );
     };
 
     const onFound = (payload: MatchmakingFoundPayload) => {
@@ -131,7 +169,7 @@ export function useGameSocket(): void {
         finishedAt: payload.finishedAt ?? null,
         clocks: payload.clocks ?? null,
       });
-      saveActiveGame({ gameId: payload.gameId });
+      saveActiveGame({ gameId: payload.gameId }, activeUserId());
     };
 
     const onState = (payload: GameStatePayload) => {
@@ -141,13 +179,17 @@ export function useGameSocket(): void {
         clocks: payload.clocks,
       });
       if (payload.state.board.cells.length > 0) {
-        const prev = loadActiveGame();
+        const userId = activeUserId();
+        const prev = loadActiveGame(userId);
         const roomCode =
           useGameStore.getState().roomCode ?? prev?.roomCode ?? undefined;
-        saveActiveGame({
-          gameId: payload.state.gameId,
-          ...(roomCode ? { roomCode } : {}),
-        });
+        saveActiveGame(
+          {
+            gameId: payload.state.gameId,
+            ...(roomCode ? { roomCode } : {}),
+          },
+          userId,
+        );
       }
     };
 
@@ -186,15 +228,51 @@ export function useGameSocket(): void {
           ? { ...payload.clocks, activeColor: null }
           : payload.clocks,
       });
-      clearActiveGame();
+      clearActiveGame(activeUserId());
     };
 
     const onError = (payload: ServerErrorPayload) => {
-      if (payload.code === "GAME_NOT_FOUND") {
-        clearActiveGame();
-        useGameStore.getState().resetMatch();
+      const store = useGameStore.getState();
+
+      // Already seated / queued — treat as soft success, clear prior errors.
+      if (
+        payload.code === "ALREADY_IN_QUEUE" ||
+        payload.code === "ALREADY_IN_GAME"
+      ) {
+        store.setError(null);
+        return;
       }
-      useGameStore.getState().setError(payload.message);
+
+      if (payload.code === "GAME_NOT_FOUND") {
+        const missingId = payload.gameId;
+        const currentId = store.gameId;
+        const session = loadActiveGame(store.userId);
+
+        // Stale sync for a different game must not wipe a live match / queue.
+        if (missingId && currentId && missingId !== currentId) {
+          return;
+        }
+
+        // Matchmaking wait with no game yet: drop only the stale session key.
+        if (store.connection === "matchmaking" && !currentId) {
+          if (!missingId || session?.gameId === missingId) {
+            clearActiveGame(store.userId);
+          }
+          store.setError(null);
+          return;
+        }
+
+        if (!missingId || session?.gameId === missingId) {
+          clearActiveGame(store.userId);
+        }
+        if (!currentId || !missingId || currentId === missingId) {
+          store.resetMatch();
+        }
+        store.setError(payload.message);
+        return;
+      }
+
+      store.setError(payload.message);
     };
 
     if (!bound.current) {
@@ -236,20 +314,24 @@ export function useGameSocket(): void {
       // only clear provider so a remount can re-bind getToken.
       void resetSocket;
     };
-  }, [getToken, isLoaded, isSignedIn]);
+  }, [getToken, isLoaded, isSignedIn, clerkUserId]);
 }
 
 export function findMatch(): void {
-  useGameStore.getState().setConnection("matchmaking");
+  const store = useGameStore.getState();
+  store.setError(null);
+  store.setConnection("matchmaking");
   getSocket().emit(SocketEvents.matchmakingJoin, {});
 }
 
 export function cancelMatchmaking(): void {
   getSocket().emit(SocketEvents.matchmakingCancel, {});
   useGameStore.getState().setConnection("connected");
+  useGameStore.getState().setError(null);
 }
 
 export function createPrivateRoom(): void {
+  useGameStore.getState().setError(null);
   getSocket().emit(
     SocketEvents.gameCreate,
     {},
@@ -260,12 +342,16 @@ export function createPrivateRoom(): void {
         yourColor: ack.color,
         playerId: ack.playerId,
       });
-      saveActiveGame({ gameId: ack.gameId, roomCode: ack.roomCode });
+      saveActiveGame(
+        { gameId: ack.gameId, roomCode: ack.roomCode },
+        activeUserId(),
+      );
     },
   );
 }
 
 export function joinPrivateRoom(gameIdOrCode: string): void {
+  useGameStore.getState().setError(null);
   getSocket().emit(SocketEvents.gameJoin, {
     gameId: gameIdOrCode.trim(),
   });
@@ -313,13 +399,16 @@ export function declareLandingGame(): void {
  * so the lobby does not immediately bounce back into /game/:id.
  */
 export function parkGameSession(): void {
-  const { gameId, roomCode } = useGameStore.getState();
+  const { gameId, roomCode, userId } = useGameStore.getState();
   if (gameId) {
-    const prev = loadActiveGame();
-    saveActiveGame({
-      gameId,
-      roomCode: roomCode ?? prev?.roomCode,
-    });
+    const prev = loadActiveGame(userId);
+    saveActiveGame(
+      {
+        gameId,
+        roomCode: roomCode ?? prev?.roomCode,
+      },
+      userId,
+    );
   }
   useGameStore.getState().resetMatch();
 }
@@ -335,6 +424,6 @@ export function leaveGame(opts?: { gameId?: string }): void {
   if (gameId) {
     getSocket().emit(SocketEvents.gameLeave, { gameId });
   }
-  clearActiveGame();
+  clearActiveGame(store.userId);
   useGameStore.getState().resetMatch();
 }

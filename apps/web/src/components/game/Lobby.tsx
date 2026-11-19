@@ -30,12 +30,13 @@ export function Lobby() {
   const roomCode = useGameStore((s) => s.roomCode);
   const lastError = useGameStore((s) => s.lastError);
   const nickname = useGameStore((s) => s.nickname);
+  const userId = useGameStore((s) => s.userId);
   const [joinCode, setJoinCode] = useState("");
   const [savedSession, setSavedSession] = useState<ActiveGameSession | null>(null);
 
   useEffect(() => {
-    setSavedSession(loadActiveGame());
-  }, []);
+    setSavedSession(loadActiveGame(userId));
+  }, [userId]);
 
   // After create / join / match found — enter the game route (not a blind remount redirect).
   useEffect(() => {
@@ -46,9 +47,9 @@ export function Lobby() {
 
   useEffect(() => {
     if (!gameId) {
-      setSavedSession(loadActiveGame());
+      setSavedSession(loadActiveGame(userId));
     }
-  }, [gameId, connection]);
+  }, [gameId, connection, userId]);
 
   const hasResume = Boolean(savedSession?.gameId) && !gameId;
   const busy =

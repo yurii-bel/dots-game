@@ -327,8 +327,8 @@ export class GameRoomRegistry {
   }
 
   async createMatchmakingGame(input: {
-    blue: { userId: string; nickname: string; socketId: string };
-    red: { userId: string; nickname: string; socketId: string };
+    blue: { userId: string; nickname: string; socketId: string | null };
+    red: { userId: string; nickname: string; socketId: string | null };
   }): Promise<ActiveGame> {
     const id = newGameId();
     const bluePlayerId = newPlayerId();
@@ -344,14 +344,14 @@ export class GameRoomRegistry {
           userId: input.blue.userId,
           nickname: input.blue.nickname,
           socketId: input.blue.socketId,
-          connected: true,
+          connected: input.blue.socketId != null,
         },
         red: {
           playerId: redPlayerId,
           userId: input.red.userId,
           nickname: input.red.nickname,
           socketId: input.red.socketId,
-          connected: true,
+          connected: input.red.socketId != null,
         },
       },
       engine: null,

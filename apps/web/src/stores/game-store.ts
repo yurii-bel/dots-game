@@ -44,6 +44,8 @@ type TimingInput = {
 type GameStore = {
   /** Server-issued seat playerId once known (engine key). */
   playerId: string | null;
+  /** Prisma user id from /api/me (scopes active-game localStorage). */
+  userId: string | null;
   /** Authenticated account nickname (from /api/me). */
   nickname: string | null;
   connection: ConnectionStatus;
@@ -65,6 +67,7 @@ type GameStore = {
   clocks: GameClocks | null;
 
   setNickname: (nickname: string | null) => void;
+  setUserId: (userId: string | null) => void;
   setPlayerId: (playerId: string | null) => void;
   setConnection: (connection: ConnectionStatus) => void;
   setLobby: (input: {
@@ -129,6 +132,7 @@ function seatPlayerId(
 
 export const useGameStore = create<GameStore>((set, get) => ({
   playerId: null,
+  userId: null,
   nickname: null,
   connection: "idle",
   gameId: null,
@@ -145,6 +149,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   clocks: null,
 
   setNickname: (nickname) => set({ nickname }),
+
+  setUserId: (userId) => set({ userId }),
 
   setPlayerId: (playerId) => set({ playerId }),
 

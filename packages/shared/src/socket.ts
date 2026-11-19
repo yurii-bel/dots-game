@@ -28,6 +28,7 @@ export const MoveErrorCodeSchema = z.enum([
   "GAME_NOT_FOUND",
   "ROOM_FULL",
   "ALREADY_IN_QUEUE",
+  "ALREADY_IN_GAME",
   "UNAUTHORIZED",
   "NICKNAME_REQUIRED",
 ]);
@@ -245,6 +246,8 @@ export type GameFinishedPayload = z.infer<typeof GameFinishedPayloadSchema>;
 export const ServerErrorPayloadSchema = z.object({
   code: MoveErrorCodeSchema.or(z.literal("INTERNAL")),
   message: z.string(),
+  /** Present when the error is scoped to a specific game (e.g. sync miss). */
+  gameId: z.string().min(1).optional(),
 });
 export type ServerErrorPayload = z.infer<typeof ServerErrorPayloadSchema>;
 
