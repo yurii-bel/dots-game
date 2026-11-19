@@ -122,6 +122,7 @@ Browser B ──┼── Socket.IO ── @dots/server ── in-memory rooms
 - Client → server: `matchmaking:join/cancel`, `game:create/join/move/resign/sync` (no client identity claims)
 - Server → client: `matchmaking:found`, `game:started`, `game:move:accepted|rejected`, `game:state`, opponent presence, `game:finished`
 - Moves carry `expectedVersion` + `requestId` (idempotent replay); seat identity comes from the verified socket session
+- Matchmaking: one queue seat per Prisma `userId`; disconnect clears the socket binding but keeps the seat until cancel or pair; `matchmaking:found` is emitted to all live sockets for each seat user
 
 **Canvas board** (`components/game/`): single HTML Canvas — white grid, blue/red dots, translucent captured territories; responsive ResizeObserver; mouse + touch place.
 

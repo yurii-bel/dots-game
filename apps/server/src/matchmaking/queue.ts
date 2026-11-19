@@ -1,34 +1,57 @@
-type QueuedPlayer = {
+export type QueuedPlayer = {
   userId: string;
   nickname: string;
-  socketId: string;
+  /** Live socket id; null after disconnect until the user re-joins/refreshes. */
+  socketId: string | null;
   enqueuedAt: number;
 };
+
+export type EnqueueResult =
+  | { kind: "enqueued"; player: QueuedPlayer }
+  | { kind: "already_queued"; player: QueuedPlayer }
+  | {
+      kind: "paired";
+      blue: QueuedPlayer;
+      red: QueuedPlayer;
+    };
 
 /**
  * Simple FIFO 1v1 matchmaking queue.
  * Pairing is first-come-first-served; no rating.
  * Identity is Prisma userId (never client-minted).
+ *
+ * One authenticated user ⇒ one queue seat. Disconnect does not drop the seat
+ * (socketId cleared); explicit cancel or a successful pair removes it.
  */
 export class MatchmakingQueue {
   private readonly queue: QueuedPlayer[] = [];
 
-  enqueue(player: Omit<QueuedPlayer, "enqueuedAt">): { paired: false } | {
-    paired: true;
-    blue: QueuedPlayer;
-    red: QueuedPlayer;
-  } {
-    this.remove(player.userId);
+  enqueue(player: {
+    userId: string;
+    nickname: string;
+    socketId: string;
+  }): EnqueueResult {
+    const existingIdx = this.queue.findIndex((p) => p.userId === player.userId);
+    if (existingIdx !== -1) {
+      const existing = this.queue[existingIdx]!;
+      existing.socketId = player.socketId;
+      existing.nickname = player.nickname;
+      return { kind: "already_queued", player: existing };
+    }
 
     const waiting = this.queue.shift();
     if (!waiting) {
-      this.queue.push({ ...player, enqueuedAt: Date.now() });
-      return { paired: false };
+      const entry: QueuedPlayer = {
+        ...player,
+        enqueuedAt: Date.now(),
+      };
+      this.queue.push(entry);
+      return { kind: "enqueued", player: entry };
     }
 
     // Waiting player is blue (first), joiner is red.
     return {
-      paired: true,
+      kind: "paired",
       blue: waiting,
       red: { ...player, enqueuedAt: Date.now() },
     };
@@ -41,17 +64,51 @@ export class MatchmakingQueue {
     return true;
   }
 
+  /**
+   * Restore a player to the front of the queue without pairing.
+   * Used when match creation fails after a pair was already taken off the queue.
+   */
+  putBack(player: {
+    userId: string;
+    nickname: string;
+    socketId: string | null;
+  }): void {
+    this.remove(player.userId);
+    this.queue.unshift({
+      userId: player.userId,
+      nickname: player.nickname,
+      socketId: player.socketId,
+      enqueuedAt: Date.now(),
+    });
+  }
+
   has(userId: string): boolean {
     return this.queue.some((p) => p.userId === userId);
   }
 
-  /** Drop queue entries bound to a disconnected socket. */
-  removeBySocket(socketId: string): void {
-    for (let i = this.queue.length - 1; i >= 0; i -= 1) {
-      if (this.queue[i]?.socketId === socketId) {
-        this.queue.splice(i, 1);
+  get(userId: string): QueuedPlayer | undefined {
+    return this.queue.find((p) => p.userId === userId);
+  }
+
+  /**
+   * Soft-disconnect: clear socket binding but keep the queue seat so a later
+   * opponent can still pair, and so reconnect can refresh the same seat.
+   */
+  clearSocket(socketId: string): void {
+    for (const entry of this.queue) {
+      if (entry.socketId === socketId) {
+        entry.socketId = null;
       }
     }
+  }
+
+  /** @deprecated Prefer clearSocket — kept for call-site clarity during transition. */
+  removeBySocket(socketId: string): void {
+    this.clearSocket(socketId);
+  }
+
+  size(): number {
+    return this.queue.length;
   }
 
   clear(): void {
