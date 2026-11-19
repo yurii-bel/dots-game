@@ -6,6 +6,7 @@ import {
   CAPTURED_DOT_SCALE,
   HOVER_PREVIEW_ALPHA,
   LAST_MOVE_INNER_RATIO,
+  boardWithoutRevealingCaptures,
   isCellPlayable,
   territoryStrokeWidth,
 } from "./draw-board";
@@ -79,5 +80,21 @@ describe("board polish palette", () => {
 
   it("uses light grey grid lines only", () => {
     expect(BOARD_GRID).toBe("#e5e5e5");
+  });
+});
+
+describe("boardWithoutRevealingCaptures", () => {
+  it("clears capturedBy only on revealing indices", () => {
+    const b = board3([
+      cell({ color: "red", disabled: true, capturedBy: "blue" }),
+      cell({ color: "blue", disabled: true, capturedBy: "red" }),
+      cell({ color: "red", disabled: true, capturedBy: "blue" }),
+    ]);
+    const settled = boardWithoutRevealingCaptures(b, new Set([1]));
+    expect(settled.cells[0]?.capturedBy).toBe("blue");
+    expect(settled.cells[1]?.capturedBy).toBeNull();
+    expect(settled.cells[1]?.disabled).toBe(true);
+    expect(settled.cells[1]?.color).toBe("blue");
+    expect(settled.cells[2]?.capturedBy).toBe("blue");
   });
 });
