@@ -3,6 +3,8 @@ export {
   HealthResponseSchema,
   NicknameSchema,
   SetNicknameBodySchema,
+  ClassicalTitleSchema,
+  ClassicalRatingSchema,
   MeResponseSchema,
   normalizeNickname,
   NICKNAME_MIN_LENGTH,
@@ -12,8 +14,37 @@ export {
   type HealthResponse,
   type Nickname,
   type SetNicknameBody,
+  type ClassicalRating,
   type MeResponse,
 } from "./schemas";
+
+export {
+  RATING_POOL_CLASSICAL,
+  RATING_START,
+  RATING_FLOOR,
+  PROVISIONAL_GAMES,
+  HIGH_RATING_BAND,
+  PLACEMENT_GAMES,
+  LEADERBOARD_INACTIVE_MS,
+  WIN_TRADE_WINDOW_MS,
+  CLASSICAL_TITLES,
+  CLASSICAL_TITLE_THRESHOLDS,
+  roundHalfUp,
+  expectedScore,
+  kFactor,
+  titleForRating,
+  promoteTitle,
+  winTradeFactor,
+  clampRating,
+  recalculatePair,
+  isLeaderboardVisible,
+  scoreFromWinner,
+  type RatingPool,
+  type ClassicalTitle,
+  type Score,
+  type RecalculatePairInput,
+  type RecalculatePairResult,
+} from "./elo";
 
 export { APP_NAME, DEFAULT_BOARD_WIDTH, DEFAULT_BOARD_HEIGHT } from "./constants";
 
@@ -39,6 +70,13 @@ export {
   type UserUpsertClient,
   type SetNicknameResult,
 } from "./users";
+
+export {
+  ensureClassicalRating,
+  toClassicalRatingSnapshot,
+  type RatingRecord,
+  type RatingClient,
+} from "./ratings";
 
 export {
   SocketEvents,

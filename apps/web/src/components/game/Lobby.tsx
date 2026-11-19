@@ -68,6 +68,8 @@ export function Lobby() {
   const roomCode = useGameStore((s) => s.roomCode);
   const lastError = useGameStore((s) => s.lastError);
   const nickname = useGameStore((s) => s.nickname);
+  const classicalTitle = useGameStore((s) => s.classicalTitle);
+  const classicalRating = useGameStore((s) => s.classicalRating);
   const userId = useGameStore((s) => s.userId);
   const [joinCode, setJoinCode] = useState("");
   const [savedSession, setSavedSession] = useState<ActiveGameSession | null>(null);
@@ -108,7 +110,7 @@ export function Lobby() {
           </p>
         </header>
 
-        {/* Identity chip — title/rating placeholders until ranking ships */}
+        {/* Identity chip — Classical title · Elo from /api/me */}
         <div
           className="flex animate-[match-desk-in_420ms_ease-out_both] items-center gap-2.5 rounded-md border border-border/70 bg-background/70 px-3 py-2 shadow-[0_1px_0_hsl(210_14%_86%/0.6)] backdrop-blur-sm"
           style={{ animationDelay: "60ms" }}
@@ -122,18 +124,18 @@ export function Lobby() {
             </span>
             <span
               className="tabular-nums text-muted-foreground"
-              title="Classical title — coming soon"
+              title="Classical title"
             >
-              —
+              {classicalTitle ?? "—"}
             </span>
             <span className="text-muted-foreground/50" aria-hidden>
               ·
             </span>
             <span
               className="tabular-nums text-muted-foreground"
-              title="Classical rating — coming soon"
+              title="Classical rating"
             >
-              —
+              {classicalRating ?? "—"}
             </span>
           </div>
           <UserButton

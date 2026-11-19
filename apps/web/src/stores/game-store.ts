@@ -51,6 +51,10 @@ type GameStore = {
   userId: string | null;
   /** Authenticated account nickname (from /api/me). */
   nickname: string | null;
+  /** Classical title from /api/me (permanent N/3/2/1/C/M/H/G). */
+  classicalTitle: string | null;
+  /** Classical Elo from /api/me. */
+  classicalRating: number | null;
   connection: ConnectionStatus;
   gameId: string | null;
   roomCode: string | null;
@@ -73,6 +77,10 @@ type GameStore = {
 
   setNickname: (nickname: string | null) => void;
   setUserId: (userId: string | null) => void;
+  setClassicalRating: (input: {
+    title: string | null;
+    rating: number | null;
+  }) => void;
   setPlayerId: (playerId: string | null) => void;
   setConnection: (connection: ConnectionStatus) => void;
   setLobby: (input: {
@@ -144,6 +152,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playerId: null,
   userId: null,
   nickname: null,
+  classicalTitle: null,
+  classicalRating: null,
   connection: "idle",
   gameId: null,
   roomCode: null,
@@ -162,6 +172,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setNickname: (nickname) => set({ nickname }),
 
   setUserId: (userId) => set({ userId }),
+
+  setClassicalRating: ({ title, rating }) =>
+    set({ classicalTitle: title, classicalRating: rating }),
 
   setPlayerId: (playerId) => set({ playerId }),
 

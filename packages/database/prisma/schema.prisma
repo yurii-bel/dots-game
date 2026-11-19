@@ -29,9 +29,60 @@ model User {
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
-  gamePlayers GamePlayer[]
+  gamePlayers   GamePlayer[]
+  ratings       Rating[]
+  rankedAsLow   RankedResult[] @relation("RankedLow")
+  rankedAsHigh  RankedResult[] @relation("RankedHigh")
 
   @@map("users")
+}
+
+/// Classical (v1) Elo row — one per user per pool.
+model Rating {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  /// v1: "classical" only.
+  pool         String    @default("classical")
+  rating       Int       @default(1200)
+  gamesPlayed  Int       @default(0) @map("games_played")
+  /// Permanent Classical title: N | 3 | 2 | 1 | C | M | H | G
+  title        String    @default("N")
+  lastRankedAt DateTime? @map("last_ranked_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pool])
+  @@index([pool, rating(sort: Desc)])
+  @@map("ratings")
+}
+
+/// Audit row for a ranked Find-match result (private rooms are unranked in v1).
+model RankedResult {
+  id             String   @id @default(cuid())
+  gameId         String   @unique @map("game_id")
+  pool           String   @default("classical")
+  /// Lexicographically lower user id (stable pair key).
+  userLowId      String   @map("user_low_id")
+  /// Lexicographically higher user id.
+  userHighId     String   @map("user_high_id")
+  winnerColor    String?  @map("winner_color")
+  ratingBeforeLow  Int    @map("rating_before_low")
+  ratingAfterLow   Int    @map("rating_after_low")
+  ratingBeforeHigh Int    @map("rating_before_high")
+  ratingAfterHigh  Int    @map("rating_after_high")
+  scoreLow       Float    @map("score_low")
+  tradeFactor    Float    @default(1) @map("trade_factor")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  game     Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  userLow  User @relation("RankedLow", fields: [userLowId], references: [id], onDelete: Cascade)
+  userHigh User @relation("RankedHigh", fields: [userHighId], references: [id], onDelete: Cascade)
+
+  @@index([userLowId, userHighId, createdAt])
+  @@index([createdAt])
+  @@map("ranked_results")
 }
 
 enum GameStatus {
@@ -53,6 +104,8 @@ model Game {
   id             String     @id @default(cuid())
   /// Short code for private room join (nullable for matchmaking games).
   roomCode       String?    @unique @map("room_code")
+  /// Find-match games are ranked; private rooms are unranked in v1.
+  ranked         Boolean    @default(false)
   status         GameStatus @default(waiting)
   ruleset        String     @default("classic")
   rulesetVersion String     @default("2017.1") @map("ruleset_version")
@@ -63,10 +116,12 @@ model Game {
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
 
-  players GamePlayer[]
-  moves   Move[]
+  players      GamePlayer[]
+  moves        Move[]
+  rankedResult RankedResult?
 
   @@index([status])
+  @@index([ranked, status])
   @@map("games")
 }
 

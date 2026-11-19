@@ -10,9 +10,9 @@ pnpm monorepo for an online browser-based Спортивные точки game.
 |------|---------|------|
 | `apps/web` | `@dots/web` | Next.js App Router — lobby + Canvas board + Zustand sync |
 | `apps/server` | `@dots/server` | Authoritative Node.js Socket.IO game server |
-| `packages/shared` | `@dots/shared` | Shared Zod schemas (socket contract + health) |
+| `packages/shared` | `@dots/shared` | Shared Zod schemas, Classical Elo helpers, socket contract |
 | `packages/game-engine` | `@dots/game-engine` | Pure TS engine — `initializeGame` / `applyMove` / `declareLanding` |
-| `packages/database` | `@dots/database` | Prisma — `User` (Clerk) / `Game` / `GamePlayer` / `Move` (+ HealthCheck) |
+| `packages/database` | `@dots/database` | Prisma — `User` (Clerk) / `Rating` (Classical Elo) / `RankedResult` / `Game` / `GamePlayer` / `Move` |
 | `packages/tsconfig` | `@dots/tsconfig` | Shared strict TypeScript base configs |
 
 ## Prerequisites
