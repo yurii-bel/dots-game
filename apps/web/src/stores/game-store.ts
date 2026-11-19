@@ -55,6 +55,10 @@ type GameStore = {
   classicalTitle: string | null;
   /** Classical Elo from /api/me. */
   classicalRating: number | null;
+  /** Ranked games played in Classical (from /api/me). */
+  classicalGamesPlayed: number | null;
+  /** Whether this account is on the public Classical board. */
+  classicalLeaderboardVisible: boolean | null;
   connection: ConnectionStatus;
   gameId: string | null;
   roomCode: string | null;
@@ -80,6 +84,8 @@ type GameStore = {
   setClassicalRating: (input: {
     title: string | null;
     rating: number | null;
+    gamesPlayed?: number | null;
+    leaderboardVisible?: boolean | null;
   }) => void;
   setPlayerId: (playerId: string | null) => void;
   setConnection: (connection: ConnectionStatus) => void;
@@ -154,6 +160,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   nickname: null,
   classicalTitle: null,
   classicalRating: null,
+  classicalGamesPlayed: null,
+  classicalLeaderboardVisible: null,
   connection: "idle",
   gameId: null,
   roomCode: null,
@@ -173,8 +181,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setUserId: (userId) => set({ userId }),
 
-  setClassicalRating: ({ title, rating }) =>
-    set({ classicalTitle: title, classicalRating: rating }),
+  setClassicalRating: ({ title, rating, gamesPlayed, leaderboardVisible }) =>
+    set({
+      classicalTitle: title,
+      classicalRating: rating,
+      classicalGamesPlayed:
+        gamesPlayed === undefined ? get().classicalGamesPlayed : gamesPlayed,
+      classicalLeaderboardVisible:
+        leaderboardVisible === undefined
+          ? get().classicalLeaderboardVisible
+          : leaderboardVisible,
+    }),
 
   setPlayerId: (playerId) => set({ playerId }),
 

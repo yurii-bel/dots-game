@@ -101,6 +101,8 @@ export function useGameSocket(): void {
           useGameStore.getState().setClassicalRating({
             title: me.classical.title,
             rating: me.classical.rating,
+            gamesPlayed: me.classical.gamesPlayed,
+            leaderboardVisible: me.classical.leaderboardVisible,
           });
         }
       } catch {

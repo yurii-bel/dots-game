@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  PLACEMENT_GAMES,
   RATING_POOL_CLASSICAL,
   RATING_START,
 } from "./elo";
 import {
   ensureClassicalRating,
+  listClassicalLeaderboard,
   toClassicalRatingSnapshot,
   type RatingRecord,
 } from "./ratings";
@@ -74,5 +76,34 @@ describe("toClassicalRatingSnapshot", () => {
     expect(snap.leaderboardVisible).toBe(false);
     expect(snap.rating).toBe(1200);
     expect(snap.title).toBe("N");
+  });
+});
+
+describe("listClassicalLeaderboard", () => {
+  it("queries Classical placement + activity window and ranks rows", async () => {
+    const now = new Date("2026-06-01T00:00:00.000Z");
+    const findMany = vi.fn().mockResolvedValue([
+      { rating: 2100, title: "M", gamesPlayed: 40, user: { nickname: "Ace" } },
+      { rating: 1500, title: "2", gamesPlayed: 12, user: { nickname: "Bee" } },
+      { rating: 1400, title: "3", gamesPlayed: 8, user: { nickname: "  " } },
+    ]);
+    const entries = await listClassicalLeaderboard(
+      { rating: { findMany } },
+      { limit: 50, now },
+    );
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          pool: RATING_POOL_CLASSICAL,
+          gamesPlayed: { gte: PLACEMENT_GAMES },
+        }),
+        take: 50,
+      }),
+    );
+    expect(entries).toEqual([
+      { rank: 1, nickname: "Ace", title: "M", rating: 2100, gamesPlayed: 40 },
+      { rank: 2, nickname: "Bee", title: "2", rating: 1500, gamesPlayed: 12 },
+    ]);
   });
 });

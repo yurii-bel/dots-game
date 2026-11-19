@@ -115,7 +115,9 @@ Browser B ──┼── Socket.IO ── @dots/server ── in-memory rooms
             └── Zustand holds sync / pending UI only (not rules)
 ```
 
-**Auth:** Clerk (email+password + Google). Landing `/` is public; `/lobby`, `/game/*`, onboarding require auth + nickname. Socket.IO handshake sends a Clerk JWT only; the server maps Prisma `userId` ↔ seat `playerId`.
+**Auth:** Clerk (email+password + Google). Landing `/`, `/leaderboard`, `/faq` are public; `/lobby`, `/game/*`, onboarding require auth + nickname. Socket.IO handshake sends a Clerk JWT only; the server maps Prisma `userId` ↔ seat `playerId`.
+
+**Ranking (Classical):** Elo in `@dots/shared`; Find-match games update `Rating` / `RankedResult`. Lobby chip shows permanent title letter + Elo from `/api/me`. Public board at `/leaderboard` (after 5 ranked games; hide after 365d inactive). FAQ at `/faq`.
 
 **Socket contract** (see `@dots/shared` `SocketEvents`):
 

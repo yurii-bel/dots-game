@@ -61,3 +61,19 @@ export const MeResponseSchema = z.object({
   classical: ClassicalRatingSchema,
 });
 export type MeResponse = z.infer<typeof MeResponseSchema>;
+
+/** One public Classical leaderboard row (placement + activity already applied). */
+export const LeaderboardEntrySchema = z.object({
+  rank: z.number().int().positive(),
+  nickname: z.string().min(1),
+  title: ClassicalTitleSchema,
+  rating: z.number().int().min(100),
+  gamesPlayed: z.number().int().nonnegative(),
+});
+export type LeaderboardEntry = z.infer<typeof LeaderboardEntrySchema>;
+
+export const LeaderboardResponseSchema = z.object({
+  pool: z.literal("classical"),
+  entries: z.array(LeaderboardEntrySchema),
+});
+export type LeaderboardResponse = z.infer<typeof LeaderboardResponseSchema>;

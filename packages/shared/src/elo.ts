@@ -39,6 +39,22 @@ export const CLASSICAL_TITLE_THRESHOLDS: ReadonlyArray<{
   { title: "N", minRating: 0 },
 ];
 
+/** Short player-facing labels for permanent Classical title letters. */
+export const CLASSICAL_TITLE_LABELS: Record<ClassicalTitle, string> = {
+  N: "Novice",
+  "3": "3rd class",
+  "2": "2nd class",
+  "1": "1st class",
+  C: "Candidate",
+  M: "Master",
+  H: "High master",
+  G: "Grandmaster",
+};
+
+export function classicalTitleLabel(title: ClassicalTitle): string {
+  return CLASSICAL_TITLE_LABELS[title] ?? title;
+}
+
 export type Score = 0 | 0.5 | 1;
 
 /** Half-up = half away from zero (Java BigDecimal HALF_UP). */

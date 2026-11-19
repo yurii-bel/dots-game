@@ -3,12 +3,14 @@
  */
 
 import {
+  LEADERBOARD_INACTIVE_MS,
+  PLACEMENT_GAMES,
   RATING_POOL_CLASSICAL,
   RATING_START,
   isLeaderboardVisible,
   type ClassicalTitle,
 } from "./elo";
-import type { ClassicalRating } from "./nickname";
+import type { ClassicalRating, LeaderboardEntry } from "./nickname";
 
 export type RatingRecord = {
   id: string;
@@ -38,6 +40,36 @@ export type RatingClient = {
     }) => Promise<RatingRecord>;
   };
 };
+
+export type LeaderboardRow = {
+  rating: number;
+  title: string;
+  gamesPlayed: number;
+  user: { nickname: string | null };
+};
+
+export type LeaderboardClient = {
+  rating: {
+    findMany: (args: {
+      where: {
+        pool: string;
+        gamesPlayed: { gte: number };
+        lastRankedAt: { gte: Date };
+        user: { nickname: { not: null } };
+      };
+      orderBy: Array<{ rating: "desc" } | { updatedAt: "asc" }>;
+      take: number;
+      select: {
+        rating: true;
+        title: true;
+        gamesPlayed: true;
+        user: { select: { nickname: true } };
+      };
+    }) => Promise<LeaderboardRow[]>;
+  };
+};
+
+export const DEFAULT_LEADERBOARD_LIMIT = 100;
 
 /** Ensure a Classical rating row exists (lazy create at R_start / title N). */
 export async function ensureClassicalRating(
@@ -82,4 +114,51 @@ export function toClassicalRatingSnapshot(
       now,
     }),
   };
+}
+
+/**
+ * Public Classical leaderboard: ≥5 ranked games, active within 365 days,
+ * nickname set. Ordered by rating desc.
+ */
+export async function listClassicalLeaderboard(
+  db: LeaderboardClient,
+  options?: { limit?: number; now?: Date },
+): Promise<LeaderboardEntry[]> {
+  const limit = Math.min(
+    Math.max(options?.limit ?? DEFAULT_LEADERBOARD_LIMIT, 1),
+    200,
+  );
+  const now = options?.now ?? new Date();
+  const since = new Date(now.getTime() - LEADERBOARD_INACTIVE_MS);
+
+  const rows = await db.rating.findMany({
+    where: {
+      pool: RATING_POOL_CLASSICAL,
+      gamesPlayed: { gte: PLACEMENT_GAMES },
+      lastRankedAt: { gte: since },
+      user: { nickname: { not: null } },
+    },
+    orderBy: [{ rating: "desc" }, { updatedAt: "asc" }],
+    take: limit,
+    select: {
+      rating: true,
+      title: true,
+      gamesPlayed: true,
+      user: { select: { nickname: true } },
+    },
+  });
+
+  const entries: LeaderboardEntry[] = [];
+  for (const row of rows) {
+    const nickname = row.user.nickname?.trim();
+    if (!nickname) continue;
+    entries.push({
+      rank: entries.length + 1,
+      nickname,
+      title: row.title as ClassicalTitle,
+      rating: row.rating,
+      gamesPlayed: row.gamesPlayed,
+    });
+  }
+  return entries;
 }
